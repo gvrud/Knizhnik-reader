@@ -1,0 +1,12 @@
+# Сборочные артефакты
+.gradle/
+build/
+*.apk
+
+# Локальные настройки (машинозависимые)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
