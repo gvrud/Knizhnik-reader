@@ -4,8 +4,10 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -25,6 +27,7 @@ import java.util.List;
 public class LibraryActivity extends Activity {
 
     private static final int REQ_OPEN = 42;
+    private static final int REQ_STORAGE = 100;
     private static final int MENU_OPEN = 1;
     private static final int MENU_RESCAN = 2;
     private static final int MENU_HELP = 3;
@@ -51,7 +54,28 @@ public class LibraryActivity extends Activity {
             }
         });
 
-        scanBooks();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_STORAGE);
+        } else {
+            scanBooks();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == REQ_STORAGE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                scanBooks();
+            } else {
+                books.clear();
+                adapter.clear();
+                adapter.notifyDataSetChanged();
+                emptyView.setText(R.string.storage_denied);
+                emptyView.setVisibility(View.VISIBLE);
+            }
+        }
     }
 
     private void scanBooks() {

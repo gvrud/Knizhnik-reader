@@ -7,9 +7,9 @@ android {
     defaultConfig {
         applicationId 'com.example.reader'
         minSdkVersion 14
-        targetSdkVersion 22
-        versionCode 1
-        versionName '1.0'
+        targetSdkVersion 23
+        versionCode 5
+        versionName '1.4.1'
     }
 
     compileOptions {

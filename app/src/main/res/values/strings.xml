@@ -4,6 +4,7 @@
     <string name="empty_library">Книги не найдены.\nПоложите файлы FB2, EPUB или MOBI в память устройства и нажмите «Обновить список», либо откройте файл через меню.</string>
     <string name="open_file">Открыть файл</string>
     <string name="rescan">Обновить список</string>
+    <string name="storage_denied">Нет доступа к памяти — список книг пуст. Дайте разрешение в настройках или откройте файл через меню.</string>
     <string name="no_file_manager">Не найден менеджер файлов</string>
     <string name="loading">Открываем книгу…</string>
     <string name="wait">Подождите…</string>
