@@ -139,6 +139,21 @@ public class ReaderActivity extends Activity {
             }
         });
 
+        Button btnPrevCh = (Button) findViewById(R.id.btn_prev_chapter);
+        Button btnNextCh = (Button) findViewById(R.id.btn_next_chapter);
+        btnPrevCh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                goToChapter(chapterIndex - 1);
+            }
+        });
+        btnNextCh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                goToChapter(chapterIndex + 1);
+            }
+        });
+
         final GestureDetector tapDetector = new GestureDetector(this,
                 new GestureDetector.SimpleOnGestureListener() {
                     @Override

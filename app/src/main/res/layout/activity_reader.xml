@@ -97,13 +97,39 @@
         android:paddingLeft="8dp"
         android:paddingRight="8dp" />
 
-    <TextView
-        android:id="@+id/chapter_label"
+    <LinearLayout
+        android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingTop="2dp"
-        android:paddingBottom="6dp"
-        android:textSize="12sp"
-        android:text="" />
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/btn_prev_chapter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:textSize="16sp"
+            android:text="&lt;" />
+
+        <TextView
+            android:id="@+id/chapter_label"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:paddingTop="2dp"
+            android:paddingBottom="6dp"
+            android:textSize="12sp"
+            android:text="" />
+
+        <Button
+            android:id="@+id/btn_next_chapter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:textSize="16sp"
+            android:text="&gt;" />
+    </LinearLayout>
 </LinearLayout>
