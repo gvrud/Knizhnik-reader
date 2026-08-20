@@ -464,13 +464,13 @@ public class EpubParser implements BookParser {
         ZipInputStream zin = new ZipInputStream(new FileInputStream(file));
         try {
             ZipEntry e;
-            byte[] buf = new byte[8192];
+            byte[] buf = new byte[32768];
             while ((e = zin.getNextEntry()) != null) {
                 if (e.isDirectory()) {
                     continue;
                 }
-                int size = (int) Math.min(e.getSize() > 0 ? e.getSize() : 4096, 20 * 1024 * 1024);
-                ByteArrayOutputStream bos = new ByteArrayOutputStream(Math.max(1024, size));
+                int size = e.getSize() > 0 ? (int) Math.min(e.getSize(), 100 * 1024 * 1024) : 32768;
+                ByteArrayOutputStream bos = new ByteArrayOutputStream(Math.max(4096, size));
                 int n;
                 while ((n = zin.read(buf)) > 0) {
                     bos.write(buf, 0, n);

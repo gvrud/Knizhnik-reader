@@ -1,5 +1,6 @@
 package com.example.reader;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
@@ -56,8 +57,13 @@ public class LibraryActivity extends Activity {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                    != PackageManager.PERMISSION_GRANTED) {
+                    != PackageManager.PERMISSION_GRANTED
+                && Build.VERSION.SDK_INT < 33) {
             requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_STORAGE);
+        } else if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(android.Manifest.permission.READ_MEDIA_IMAGES)
+                    != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.READ_MEDIA_IMAGES}, REQ_STORAGE);
         } else {
             scanBooks();
         }

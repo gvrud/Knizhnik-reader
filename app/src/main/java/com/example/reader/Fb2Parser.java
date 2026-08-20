@@ -355,10 +355,15 @@ public class Fb2Parser implements BookParser {
     }
 
     private static byte[] readAll(File f) throws IOException {
+        long flen = f.length();
+        int bufSize = (int) Math.min(flen >= 0 ? flen : 0, 50 * 1024 * 1024);
+        if (bufSize < 8192) {
+            bufSize = 8192;
+        }
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(bufSize);
         InputStream in = new FileInputStream(f);
         try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream((int) Math.min(f.length(), 1024 * 1024));
-            byte[] b = new byte[8192];
+            byte[] b = new byte[32768];
             int n;
             while ((n = in.read(b)) > 0) {
                 bos.write(b, 0, n);
@@ -381,6 +386,7 @@ public class Fb2Parser implements BookParser {
                 sb.append(replacement);
                 pos = m.end();
             } else {
+                // keep unrecognized entity as-is
                 pos = m.end();
             }
         }

@@ -280,8 +280,12 @@ public class MobiParser implements BookParser {
         FileInputStream in = new FileInputStream(f);
         try {
             long flen = f.length();
-            ByteArrayOutputStream bos = new ByteArrayOutputStream(flen > 0 ? (int) Math.min(flen, 1024 * 1024) : 8192);
-            byte[] b = new byte[8192];
+            int initSize = (int) Math.min(flen >= 0 ? flen : 0, 50 * 1024 * 1024);
+            if (initSize < 32768) {
+                initSize = 32768;
+            }
+            ByteArrayOutputStream bos = new ByteArrayOutputStream(initSize);
+            byte[] b = new byte[32768];
             int n;
             while ((n = in.read(b)) > 0) {
                 bos.write(b, 0, n);
