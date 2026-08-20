@@ -57,6 +57,7 @@ public class Fb2Parser implements BookParser {
         byte[] raw = readAll(file);
         String xml = decode(raw);
         xml = replaceGreekEntities(xml);
+        xml = sanitizeXml(xml);
 
         try {
             parseXml(book, xml, file.getName());
@@ -386,11 +387,37 @@ public class Fb2Parser implements BookParser {
                 sb.append(replacement);
                 pos = m.end();
             } else {
-                // keep unrecognized entity as-is
+                sb.append(xml, pos, m.end());
                 pos = m.end();
             }
         }
         sb.append(xml, pos, xml.length());
+        return sb.toString();
+    }
+
+    private static String sanitizeXml(String xml) {
+        StringBuilder sb = new StringBuilder(xml.length());
+        int len = xml.length();
+        for (int i = 0; i < len; i++) {
+            char c = xml.charAt(i);
+            boolean keep;
+            if (c >= 0x20 && c <= 0xD7FF) {
+                keep = true;
+            } else if (c == 0x09 || c == 0x0A || c == 0x0D) {
+                keep = true;
+            } else if (c >= 0xE000 && c <= 0xFFFD) {
+                keep = true;
+            } else if (Character.isHighSurrogate(c) && i + 1 < len && Character.isLowSurrogate(xml.charAt(i + 1))) {
+                keep = true;
+            } else if (Character.isLowSurrogate(c)) {
+                keep = false;
+            } else {
+                keep = false;
+            }
+            if (keep) {
+                sb.append(c);
+            }
+        }
         return sb.toString();
     }
 }

@@ -55,15 +55,13 @@ public class LibraryActivity extends Activity {
             }
         });
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                    != PackageManager.PERMISSION_GRANTED
-                && Build.VERSION.SDK_INT < 33) {
-            requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_STORAGE);
-        } else if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(android.Manifest.permission.READ_MEDIA_IMAGES)
+        if (Build.VERSION.SDK_INT >= 30) {
+            // Android 11+: все файлы через SAF или все разрешения уже даны
+            scanBooks();
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{android.Manifest.permission.READ_MEDIA_IMAGES}, REQ_STORAGE);
+            requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_STORAGE);
         } else {
             scanBooks();
         }
