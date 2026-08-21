@@ -48,6 +48,7 @@ public class ReaderActivity extends Activity {
     private static final int MENU_BOOKMARKS = 1;
     private static final int MENU_HELP = 2;
     private static final int MENU_QUOTES = 3;
+    private static final int MENU_FULLSCREEN = 4;
     private static final int EDGE_ZONE = 20;
 
     private ScrollView scrollView;
@@ -66,8 +67,6 @@ public class ReaderActivity extends Activity {
     private boolean seekDragging;
     private int pendingOffset;
     private String stableKey;
-    private Button btnFullscreen;
-    private Button btnFullscreenOverlay;
 
     private final Html.ImageGetter imageGetter = new Html.ImageGetter() {
         @Override
@@ -108,14 +107,6 @@ public class ReaderActivity extends Activity {
         Button btnPlus = (Button) findViewById(R.id.btn_font_plus);
         Button btnTheme = (Button) findViewById(R.id.btn_theme);
         Button btnJustify = (Button) findViewById(R.id.btn_justify);
-        btnFullscreen = (Button) findViewById(R.id.btn_fullscreen);
-        btnFullscreenOverlay = (Button) findViewById(R.id.btn_fullscreen_overlay);
-        btnFullscreenOverlay.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                toggleFullscreen();
-            }
-        });
 
         btnToc.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -151,12 +142,6 @@ public class ReaderActivity extends Activity {
             @Override
             public void onClick(View v) {
                 toggleJustify();
-            }
-        });
-        btnFullscreen.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                toggleFullscreen();
             }
         });
 
@@ -220,6 +205,7 @@ public class ReaderActivity extends Activity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        menu.add(0, MENU_FULLSCREEN, 0, R.string.fullscreen_menu);
         menu.add(0, MENU_BOOKMARKS, 0, R.string.bookmarks);
         menu.add(0, MENU_QUOTES, 0, R.string.quotes);
         menu.add(0, MENU_HELP, 1, R.string.help);
@@ -228,6 +214,10 @@ public class ReaderActivity extends Activity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == MENU_FULLSCREEN) {
+            toggleFullscreen();
+            return true;
+        }
         if (item.getItemId() == MENU_BOOKMARKS) {
             showBookmarkMenu();
             return true;
@@ -286,6 +276,15 @@ public class ReaderActivity extends Activity {
         return super.onKeyDown(keyCode, event);
     }
 
+    @Override
+    public void onBackPressed() {
+        if (fullscreen) {
+            toggleFullscreen();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
     private void toggleFullscreen() {
         fullscreen = !fullscreen;
         if (fullscreen) {
@@ -302,9 +301,6 @@ public class ReaderActivity extends Activity {
                             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-            if (btnFullscreenOverlay != null) {
-                btnFullscreenOverlay.setVisibility(View.VISIBLE);
-            }
         } else {
             topBar.setVisibility(View.VISIBLE);
             pageSeek.setVisibility(View.VISIBLE);
@@ -314,16 +310,6 @@ public class ReaderActivity extends Activity {
             }
             getWindow().getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-            if (btnFullscreenOverlay != null) {
-                btnFullscreenOverlay.setVisibility(View.GONE);
-            }
-        }
-        updateFullscreenButton();
-    }
-
-    private void updateFullscreenButton() {
-        if (btnFullscreen != null) {
-            btnFullscreen.setText(fullscreen ? R.string.fullscreen_exit : R.string.fullscreen_enter);
         }
     }
 

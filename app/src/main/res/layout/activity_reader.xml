@@ -69,15 +69,6 @@
                 android:minHeight="0dp"
                 android:textSize="12sp"
                 android:text="@string/btn_justify" />
-
-            <Button
-                android:id="@+id/btn_fullscreen"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:textSize="12sp"
-                android:text="@string/fullscreen_enter" />
         </LinearLayout>
 
         <ScrollView
@@ -146,16 +137,4 @@
                 android:text="&gt;" />
         </LinearLayout>
     </LinearLayout>
-
-    <Button
-        android:id="@+id/btn_fullscreen_overlay"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="8dp"
-        android:minWidth="0dp"
-        android:minHeight="0dp"
-        android:textSize="12sp"
-        android:visibility="gone"
-        android:text="@string/fullscreen_exit" />
 </FrameLayout>
