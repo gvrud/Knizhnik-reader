@@ -4,12 +4,15 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -37,6 +40,7 @@ public class LibraryActivity extends Activity {
     private TextView emptyView;
     private List<File> books = new ArrayList<File>();
     private ArrayAdapter<String> adapter;
+    private boolean permissionRequested;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,15 +59,60 @@ public class LibraryActivity extends Activity {
             }
         });
 
-        if (Build.VERSION.SDK_INT >= 30) {
-            // Android 11+: все файлы через SAF или все разрешения уже даны
-            scanBooks();
+        if (Build.VERSION.SDK_INT >= 30 && !hasAllFilesAccess()) {
+            askAllFilesAccess();
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && Build.VERSION.SDK_INT < 30
                 && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_STORAGE);
         } else {
             scanBooks();
+        }
+    }
+
+    private boolean hasAllFilesAccess() {
+        if (Build.VERSION.SDK_INT < 30) {
+            return true;
+        }
+        return Environment.isExternalStorageManager();
+    }
+
+    private void askAllFilesAccess() {
+        permissionRequested = true;
+        new AlertDialog.Builder(this)
+                .setMessage(R.string.all_files_access)
+                .setPositiveButton(R.string.all_files_open_settings,
+                        new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                try {
+                                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                                    intent.setData(Uri.parse("package:" + getPackageName()));
+                                    startActivity(intent);
+                                } catch (Exception e) {
+                                    startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                                }
+                            }
+                        })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (permissionRequested) {
+            permissionRequested = false;
+            if (hasAllFilesAccess()) {
+                scanBooks();
+            } else {
+                books.clear();
+                adapter.clear();
+                adapter.notifyDataSetChanged();
+                emptyView.setText(R.string.storage_denied);
+                emptyView.setVisibility(View.VISIBLE);
+            }
         }
     }
 
@@ -88,7 +137,9 @@ public class LibraryActivity extends Activity {
         new AsyncTask<Void, Void, List<File>>() {
             @Override
             protected List<File> doInBackground(Void... params) {
-                return BookScanner.scan();
+                List<File> result = BookScanner.scan();
+                result.addAll(importedBooks());
+                return result;
             }
 
             @Override
@@ -105,6 +156,21 @@ public class LibraryActivity extends Activity {
                 emptyView.setVisibility(books.isEmpty() ? View.VISIBLE : View.GONE);
             }
         }.execute();
+    }
+
+    private List<File> importedBooks() {
+        List<File> result = new ArrayList<File>();
+        File dir = new File(getFilesDir(), "books");
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return result;
+        }
+        for (File f : files) {
+            if (f.isFile()) {
+                result.add(f);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -163,7 +229,19 @@ public class LibraryActivity extends Activity {
                             || name.endsWith(".mobi"))) {
                         name = "opened.book";
                     }
-                    File f = new File(getCacheDir(), "book_" + System.currentTimeMillis() + "_" + name);
+                    File dir = new File(getFilesDir(), "books");
+                    if (!dir.exists()) {
+                        dir.mkdirs();
+                    }
+                    File f = new File(dir, name);
+                    int k = 1;
+                    while (f.exists()) {
+                        int dot = name.lastIndexOf('.');
+                        String base = dot > 0 ? name.substring(0, dot) : name;
+                        String ext = dot > 0 ? name.substring(dot) : "";
+                        f = new File(dir, base + "_" + k + ext);
+                        k++;
+                    }
                     out = new FileOutputStream(f);
                     byte[] b = new byte[8192];
                     int n;

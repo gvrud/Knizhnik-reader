@@ -3,6 +3,9 @@ package com.example.reader;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -18,6 +21,7 @@ import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
 import android.util.Base64;
+import android.view.ActionMode;
 import android.view.GestureDetector;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -44,6 +48,7 @@ public class ReaderActivity extends Activity {
     private static final int HIGHLIGHT = 0xFFFFEB3B;
     private static final int MENU_BOOKMARKS = 1;
     private static final int MENU_HELP = 2;
+    private static final int MENU_QUOTES = 3;
     private static final int EDGE_ZONE = 20;
 
     private ScrollView scrollView;
@@ -61,6 +66,7 @@ public class ReaderActivity extends Activity {
     private boolean fullscreen;
     private boolean seekDragging;
     private int pendingOffset;
+    private String stableKey;
 
     private final Html.ImageGetter imageGetter = new Html.ImageGetter() {
         @Override
@@ -166,7 +172,7 @@ public class ReaderActivity extends Activity {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 tapDetector.onTouchEvent(event);
-                return true;
+                return false;
             }
         });
 
@@ -216,6 +222,7 @@ public class ReaderActivity extends Activity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         menu.add(0, MENU_BOOKMARKS, 0, R.string.bookmarks);
+        menu.add(0, MENU_QUOTES, 0, R.string.quotes);
         menu.add(0, MENU_HELP, 1, R.string.help);
         return true;
     }
@@ -224,6 +231,10 @@ public class ReaderActivity extends Activity {
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == MENU_BOOKMARKS) {
             showBookmarkMenu();
+            return true;
+        }
+        if (item.getItemId() == MENU_QUOTES) {
+            showQuoteMenu();
             return true;
         }
         if (item.getItemId() == MENU_HELP) {
@@ -397,11 +408,11 @@ public class ReaderActivity extends Activity {
     }
 
     private void savePosition() {
-        if (book == null) {
+        if (book == null || stableKey == null) {
             return;
         }
-        Prefs.setChapter(this, book.filePath, chapterIndex);
-        Prefs.setPosition(this, book.filePath, currentOffset());
+        Prefs.setChapter(this, stableKey, chapterIndex);
+        Prefs.setPosition(this, stableKey, currentOffset());
     }
 
     private int currentOffset() {
@@ -442,9 +453,10 @@ public class ReaderActivity extends Activity {
                     return;
                 }
                 book = result;
-                int saved = Prefs.getChapter(ReaderActivity.this, file.getAbsolutePath());
+                stableKey = Prefs.bookKey(file);
+                int saved = Prefs.getChapter(ReaderActivity.this, stableKey);
                 chapterIndex = saved >= 0 && saved < book.chapters.size() ? saved : 0;
-                pendingOffset = Prefs.getPosition(ReaderActivity.this, file.getAbsolutePath());
+                pendingOffset = Prefs.getPosition(ReaderActivity.this, stableKey);
                 displayChapter();
                 if (pendingOffset > 0) {
                     scrollToOffset(pendingOffset);
@@ -470,6 +482,49 @@ public class ReaderActivity extends Activity {
     private void displayChapter() {
         Chapter ch = book.chapters.get(chapterIndex);
         textView.setTextSize(fontSize);
+        textView.setTextIsSelectable(true);
+        textView.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
+            @Override
+            public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+                return true;
+            }
+
+            @Override
+            public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+                menu.clear();
+                menu.add(0, 1, 0, R.string.copy);
+                menu.add(0, 2, 1, R.string.save_as_quote);
+                return true;
+            }
+
+            @Override
+            public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+                int start = textView.getSelectionStart();
+                int end = textView.getSelectionEnd();
+                if (start < 0 || end < 0 || start == end) {
+                    mode.finish();
+                    return true;
+                }
+                int s = Math.min(start, end);
+                int e = Math.max(start, end);
+                String sel = textView.getText().subSequence(s, e).toString();
+                if (item.getItemId() == 1) {
+                    copyToClipboard(sel);
+                    mode.finish();
+                    return true;
+                }
+                if (item.getItemId() == 2) {
+                    saveQuote(sel);
+                    mode.finish();
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public void onDestroyActionMode(ActionMode mode) {
+            }
+        });
         if (ch.html != null) {
             textView.setText(Html.fromHtml(ch.html, imageGetter, null));
         } else {
@@ -781,6 +836,75 @@ public class ReaderActivity extends Activity {
         chapterIndex = ci;
         displayChapter();
         scrollToOffset(mark[1]);
+    }
+
+    private void copyToClipboard(String text) {
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm != null) {
+            cm.setPrimaryClip(ClipData.newPlainText(book.title, text));
+            toast(R.string.copied);
+        }
+    }
+
+    private void saveQuote(String text) {
+        if (stableKey == null) {
+            return;
+        }
+        String quote = text.replace('\n', ' ').trim();
+        if (quote.length() == 0) {
+            return;
+        }
+        int res = Prefs.addQuote(this, stableKey, quote);
+        if (res == Prefs.BOOKMARK_OK) {
+            toast(R.string.quote_saved);
+        } else if (res == Prefs.BOOKMARK_LIMIT) {
+            toast(R.string.quote_limit);
+        } else {
+            toast(R.string.quote_exists);
+        }
+    }
+
+    private void showQuoteMenu() {
+        if (book == null || stableKey == null) {
+            return;
+        }
+        final List<String> quotes = Prefs.getQuotes(this, stableKey);
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.quotes) + " (" + quotes.size() + "/5)")
+                .setNegativeButton(android.R.string.cancel, null);
+        if (quotes.isEmpty()) {
+            b.setMessage(R.string.no_quotes);
+        } else {
+            b.setItems(quotes.toArray(new String[quotes.size()]),
+                    new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            showQuoteActions(quotes.get(which), which);
+                        }
+                    });
+        }
+        b.show();
+    }
+
+    private void showQuoteActions(final String quote, final int index) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.quote)
+                .setMessage(quote)
+                .setPositiveButton(R.string.copy, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        copyToClipboard(quote);
+                    }
+                })
+                .setNegativeButton(R.string.delete_quote, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        Prefs.removeQuote(ReaderActivity.this, stableKey, index);
+                        toast(R.string.quote_deleted);
+                    }
+                })
+                .setNeutralButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void showHelp() {

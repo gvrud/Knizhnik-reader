@@ -3,6 +3,7 @@ package com.example.reader;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,6 +11,7 @@ public final class Prefs {
 
     private static final String NAME = "reader_prefs";
     private static final int MAX_BOOKMARKS = 5;
+    private static final int MAX_QUOTES = 5;
 
     public static final int BOOKMARK_OK = 1;
     public static final int BOOKMARK_LIMIT = 0;
@@ -20,6 +22,12 @@ public final class Prefs {
 
     private static SharedPreferences get(Context c) {
         return c.getSharedPreferences(NAME, Context.MODE_PRIVATE);
+    }
+
+    public static String bookKey(File f) {
+        String name = f.getName();
+        long size = f.length();
+        return (name + "_" + size).replaceAll("[^A-Za-z0-9_.-]", "_");
     }
 
     public static int getFontSize(Context c) {
@@ -109,6 +117,55 @@ public final class Prefs {
             sb.append(m[0]).append('|').append(m[1]);
         }
         get(c).edit().putString("bm_" + path, sb.toString()).commit();
+    }
+
+    public static List<String> getQuotes(Context c, String path) {
+        String s = get(c).getString("qt_" + path, null);
+        List<String> out = new ArrayList<String>();
+        if (s == null || s.length() == 0) {
+            return out;
+        }
+        String[] parts = s.split("\u0001");
+        for (String part : parts) {
+            if (part.length() > 0) {
+                out.add(part);
+            }
+        }
+        return out;
+    }
+
+    public static int addQuote(Context c, String path, String quote) {
+        List<String> list = getQuotes(c, path);
+        if (list.size() >= MAX_QUOTES) {
+            return BOOKMARK_LIMIT;
+        }
+        for (String q : list) {
+            if (q.equals(quote)) {
+                return BOOKMARK_DUPLICATE;
+            }
+        }
+        list.add(quote);
+        saveQuotes(c, path, list);
+        return BOOKMARK_OK;
+    }
+
+    public static void removeQuote(Context c, String path, int index) {
+        List<String> list = getQuotes(c, path);
+        if (index >= 0 && index < list.size()) {
+            list.remove(index);
+            saveQuotes(c, path, list);
+        }
+    }
+
+    private static void saveQuotes(Context c, String path, List<String> list) {
+        StringBuilder sb = new StringBuilder();
+        for (String q : list) {
+            if (sb.length() > 0) {
+                sb.append('\u0001');
+            }
+            sb.append(q);
+        }
+        get(c).edit().putString("qt_" + path, sb.toString()).commit();
     }
 
     public static boolean isJustify(Context c) {
