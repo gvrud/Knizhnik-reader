@@ -1,135 +1,161 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/reader_root"
-    android:orientation="vertical"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <LinearLayout
-        android:id="@+id/reader_top_bar"
-        android:orientation="horizontal"
+        android:id="@+id/reader_root"
+        android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="4dp">
-
-        <Button
-            android:id="@+id/btn_toc"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:textSize="12sp"
-            android:text="@string/btn_toc" />
-
-        <Button
-            android:id="@+id/btn_search"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:textSize="12sp"
-            android:text="@string/btn_search" />
-
-        <Button
-            android:id="@+id/btn_font_minus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:textSize="12sp"
-            android:text="@string/btn_minus" />
-
-        <Button
-            android:id="@+id/btn_font_plus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:textSize="12sp"
-            android:text="@string/btn_plus" />
-
-        <Button
-            android:id="@+id/btn_theme"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:textSize="12sp"
-            android:text="@string/btn_theme" />
-
-        <Button
-            android:id="@+id/btn_justify"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:textSize="12sp"
-            android:text="@string/btn_justify" />
-    </LinearLayout>
-
-    <ScrollView
-        android:id="@+id/scroll_view"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true">
+        android:layout_height="match_parent">
 
         <LinearLayout
-            android:id="@+id/reader_content"
-            android:orientation="vertical"
+            android:id="@+id/reader_top_bar"
+            android:orientation="horizontal"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:padding="4dp">
+
+            <Button
+                android:id="@+id/btn_toc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="12sp"
+                android:text="@string/btn_toc" />
+
+            <Button
+                android:id="@+id/btn_search"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="12sp"
+                android:text="@string/btn_search" />
+
+            <Button
+                android:id="@+id/btn_font_minus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="12sp"
+                android:text="@string/btn_minus" />
+
+            <Button
+                android:id="@+id/btn_font_plus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="12sp"
+                android:text="@string/btn_plus" />
+
+            <Button
+                android:id="@+id/btn_theme"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="12sp"
+                android:text="@string/btn_theme" />
+
+            <Button
+                android:id="@+id/btn_justify"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="12sp"
+                android:text="@string/btn_justify" />
+
+            <Button
+                android:id="@+id/btn_fullscreen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="12sp"
+                android:text="@string/fullscreen_enter" />
+        </LinearLayout>
+
+        <ScrollView
+            android:id="@+id/scroll_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:id="@+id/reader_content"
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/book_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    android:textSize="18sp"
+                    android:textIsSelectable="false" />
+            </LinearLayout>
+        </ScrollView>
+
+        <SeekBar
+            android:id="@+id/page_seek"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/btn_prev_chapter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="16sp"
+                android:text="&lt;" />
 
             <TextView
-                android:id="@+id/book_text"
-                android:layout_width="match_parent"
+                android:id="@+id/chapter_label"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:padding="16dp"
-                android:textSize="18sp"
-                android:textIsSelectable="false" />
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingTop="2dp"
+                android:paddingBottom="6dp"
+                android:textSize="12sp"
+                android:text="" />
+
+            <Button
+                android:id="@+id/btn_next_chapter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:textSize="16sp"
+                android:text="&gt;" />
         </LinearLayout>
-    </ScrollView>
-
-    <SeekBar
-        android:id="@+id/page_seek"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingLeft="8dp"
-        android:paddingRight="8dp" />
-
-    <LinearLayout
-        android:orientation="horizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical">
-
-        <Button
-            android:id="@+id/btn_prev_chapter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:textSize="16sp"
-            android:text="&lt;" />
-
-        <TextView
-            android:id="@+id/chapter_label"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:paddingTop="2dp"
-            android:paddingBottom="6dp"
-            android:textSize="12sp"
-            android:text="" />
-
-        <Button
-            android:id="@+id/btn_next_chapter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:textSize="16sp"
-            android:text="&gt;" />
     </LinearLayout>
-</LinearLayout>
+
+    <Button
+        android:id="@+id/btn_fullscreen_overlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="8dp"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:textSize="12sp"
+        android:visibility="gone"
+        android:text="@string/fullscreen_exit" />
+</FrameLayout>

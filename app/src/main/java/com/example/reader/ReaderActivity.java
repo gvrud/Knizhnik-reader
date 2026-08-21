@@ -22,11 +22,9 @@ import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
 import android.util.Base64;
 import android.view.ActionMode;
-import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.Button;
@@ -68,6 +66,8 @@ public class ReaderActivity extends Activity {
     private boolean seekDragging;
     private int pendingOffset;
     private String stableKey;
+    private Button btnFullscreen;
+    private Button btnFullscreenOverlay;
 
     private final Html.ImageGetter imageGetter = new Html.ImageGetter() {
         @Override
@@ -108,6 +108,14 @@ public class ReaderActivity extends Activity {
         Button btnPlus = (Button) findViewById(R.id.btn_font_plus);
         Button btnTheme = (Button) findViewById(R.id.btn_theme);
         Button btnJustify = (Button) findViewById(R.id.btn_justify);
+        btnFullscreen = (Button) findViewById(R.id.btn_fullscreen);
+        btnFullscreenOverlay = (Button) findViewById(R.id.btn_fullscreen_overlay);
+        btnFullscreenOverlay.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleFullscreen();
+            }
+        });
 
         btnToc.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -145,6 +153,12 @@ public class ReaderActivity extends Activity {
                 toggleJustify();
             }
         });
+        btnFullscreen.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleFullscreen();
+            }
+        });
 
         Button btnPrevCh = (Button) findViewById(R.id.btn_prev_chapter);
         Button btnNextCh = (Button) findViewById(R.id.btn_next_chapter);
@@ -158,28 +172,6 @@ public class ReaderActivity extends Activity {
             @Override
             public void onClick(View v) {
                 goToChapter(chapterIndex + 1);
-            }
-        });
-
-        final GestureDetector tapDetector = new GestureDetector(this,
-                new GestureDetector.SimpleOnGestureListener() {
-                    @Override
-                    public boolean onSingleTapUp(MotionEvent e) {
-                        handleTap(e.getX());
-                        return true;
-                    }
-
-                    @Override
-                    public boolean onDoubleTap(MotionEvent e) {
-                        handleDoubleTap(e.getX());
-                        return true;
-                    }
-                });
-        contentView.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                tapDetector.onTouchEvent(event);
-                return false;
             }
         });
 
@@ -281,36 +273,6 @@ public class ReaderActivity extends Activity {
         toast(justify ? R.string.justify_on : R.string.justify_off);
     }
 
-    private void handleTap(float x) {
-        if (book == null) {
-            return;
-        }
-        int w = contentView.getWidth();
-        if (w <= 0) {
-            return;
-        }
-        float edge = w * EDGE_ZONE / 100f;
-        if (x < edge) {
-            pageBack();
-        } else if (x > w - edge) {
-            pageForward();
-        }
-    }
-
-    private void handleDoubleTap(float x) {
-        if (book == null) {
-            return;
-        }
-        int w = contentView.getWidth();
-        if (w <= 0) {
-            return;
-        }
-        float edge = w * EDGE_ZONE / 100f;
-        if (x >= edge && x <= w - edge) {
-            toggleFullscreen();
-        }
-    }
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
@@ -340,7 +302,9 @@ public class ReaderActivity extends Activity {
                             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-            toast(R.string.fullscreen_hint);
+            if (btnFullscreenOverlay != null) {
+                btnFullscreenOverlay.setVisibility(View.VISIBLE);
+            }
         } else {
             topBar.setVisibility(View.VISIBLE);
             pageSeek.setVisibility(View.VISIBLE);
@@ -350,6 +314,16 @@ public class ReaderActivity extends Activity {
             }
             getWindow().getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            if (btnFullscreenOverlay != null) {
+                btnFullscreenOverlay.setVisibility(View.GONE);
+            }
+        }
+        updateFullscreenButton();
+    }
+
+    private void updateFullscreenButton() {
+        if (btnFullscreen != null) {
+            btnFullscreen.setText(fullscreen ? R.string.fullscreen_exit : R.string.fullscreen_enter);
         }
     }
 
