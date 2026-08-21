@@ -23,6 +23,7 @@ import android.text.style.BackgroundColorSpan;
 import android.util.Base64;
 import android.view.ActionMode;
 import android.view.GestureDetector;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -167,6 +168,12 @@ public class ReaderActivity extends Activity {
                         handleTap(e.getX());
                         return true;
                     }
+
+                    @Override
+                    public boolean onDoubleTap(MotionEvent e) {
+                        handleDoubleTap(e.getX());
+                        return true;
+                    }
                 });
         contentView.setOnTouchListener(new View.OnTouchListener() {
             @Override
@@ -287,9 +294,34 @@ public class ReaderActivity extends Activity {
             pageBack();
         } else if (x > w - edge) {
             pageForward();
-        } else {
+        }
+    }
+
+    private void handleDoubleTap(float x) {
+        if (book == null) {
+            return;
+        }
+        int w = contentView.getWidth();
+        if (w <= 0) {
+            return;
+        }
+        float edge = w * EDGE_ZONE / 100f;
+        if (x >= edge && x <= w - edge) {
             toggleFullscreen();
         }
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            pageForward();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            pageBack();
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
     }
 
     private void toggleFullscreen() {
@@ -883,6 +915,12 @@ public class ReaderActivity extends Activity {
                         }
                     });
         }
+        b.setPositiveButton(R.string.close, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
         b.show();
     }
 
