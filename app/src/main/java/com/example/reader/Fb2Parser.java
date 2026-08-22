@@ -6,11 +6,11 @@ import android.util.Xml;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.util.HashMap;
 import java.util.Locale;
@@ -54,10 +54,7 @@ public class Fb2Parser implements BookParser {
         book.title = file.getName();
         book.author = "";
 
-        byte[] raw = readAll(file);
-        String xml = decode(raw);
-        xml = replaceGreekEntities(xml);
-        xml = sanitizeXml(xml);
+        String xml = readAndPreprocess(file);
 
         try {
             parseXml(book, xml, file.getName());
@@ -65,6 +62,82 @@ public class Fb2Parser implements BookParser {
             throw new IOException("Ошибка разбора FB2: " + e.getMessage());
         }
         return book;
+    }
+
+    private static String readAndPreprocess(File file) throws IOException {
+        String charset = detectCharset(file);
+        InputStream in = new FileInputStream(file);
+        java.io.Reader reader = null;
+        try {
+            String enc = charset;
+            int skip = 0;
+            if ("UTF-8".equals(enc)) {
+                byte[] b = new byte[3];
+                int n = in.read(b);
+                if (n >= 3 && (b[0] & 0xFF) == 0xEF && (b[1] & 0xFF) == 0xBB && (b[2] & 0xFF) == 0xBF) {
+                    skip = 3;
+                } else {
+                    in.close();
+                    in = new FileInputStream(file);
+                }
+            } else if ("UTF-16LE".equals(enc) || "UTF-16BE".equals(enc)) {
+                in.close();
+                in = new FileInputStream(file);
+            }
+            reader = new InputStreamReader(in, enc);
+            StringBuilder sb = new StringBuilder((int) Math.min(file.length(), 64 * 1024 * 1024));
+            char[] buf = new char[32768];
+            int n;
+            while ((n = reader.read(buf)) > 0) {
+                sb.append(buf, 0, n);
+            }
+            String xml = sb.toString();
+            return replaceGreekEntities(sanitizeXml(xml));
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            } else if (in != null) {
+                try {
+                    in.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+        }
+    }
+
+    private static String detectCharset(File file) throws IOException {
+        InputStream in = new FileInputStream(file);
+        try {
+            byte[] head = new byte[512];
+            int n = in.read(head);
+            if (n >= 3 && (head[0] & 0xFF) == 0xEF && (head[1] & 0xFF) == 0xBB && (head[2] & 0xFF) == 0xBF) {
+                return "UTF-8";
+            }
+            if (n >= 2 && (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xFE) {
+                return "UTF-16LE";
+            }
+            if (n >= 2 && (head[0] & 0xFF) == 0xFE && (head[1] & 0xFF) == 0xFF) {
+                return "UTF-16BE";
+            }
+            String s;
+            try {
+                s = new String(head, 0, n, "ISO-8859-1");
+            } catch (Exception e) {
+                return "UTF-8";
+            }
+            Matcher m = ENCODING_PATTERN.matcher(s);
+            if (m.find()) {
+                return mapCharset(m.group(1).trim().toLowerCase(Locale.US));
+            }
+            return "UTF-8";
+        } finally {
+            in.close();
+        }
     }
 
     private void parseXml(Book book, String xml, String fileName) throws IOException, XmlPullParserException {
@@ -245,51 +318,6 @@ public class Fb2Parser implements BookParser {
         }
     }
 
-    private static String decode(byte[] raw) {
-        String charset = detectCharset(raw);
-        int off = 0;
-        if ("UTF-8".equals(charset) && raw.length >= 3
-                && (raw[0] & 0xFF) == 0xEF && (raw[1] & 0xFF) == 0xBB && (raw[2] & 0xFF) == 0xBF) {
-            off = 3;
-        } else if (("UTF-16LE".equals(charset) || "UTF-16BE".equals(charset)) && raw.length >= 2) {
-            off = 2;
-        }
-        try {
-            return new String(raw, off, raw.length - off, charset);
-        } catch (Exception e) {
-            try {
-                return new String(raw, off, raw.length - off, "UTF-8");
-            } catch (Exception e2) {
-                return new String(raw, off, raw.length - off);
-            }
-        }
-    }
-
-    private static String detectCharset(byte[] raw) {
-        if (raw.length >= 3 && (raw[0] & 0xFF) == 0xEF
-                && (raw[1] & 0xFF) == 0xBB && (raw[2] & 0xFF) == 0xBF) {
-            return "UTF-8";
-        }
-        if (raw.length >= 2 && (raw[0] & 0xFF) == 0xFF && (raw[1] & 0xFF) == 0xFE) {
-            return "UTF-16LE";
-        }
-        if (raw.length >= 2 && (raw[0] & 0xFF) == 0xFE && (raw[1] & 0xFF) == 0xFF) {
-            return "UTF-16BE";
-        }
-        int n = Math.min(raw.length, 512);
-        String head;
-        try {
-            head = new String(raw, 0, n, "ISO-8859-1");
-        } catch (Exception e) {
-            return "UTF-8";
-        }
-        Matcher m = ENCODING_PATTERN.matcher(head);
-        if (m.find()) {
-            return mapCharset(m.group(1).trim().toLowerCase(Locale.US));
-        }
-        return "UTF-8";
-    }
-
     private static String mapCharset(String enc) {
         if (enc.contains("1251")) {
             return "CP1251";
@@ -352,26 +380,6 @@ public class Fb2Parser implements BookParser {
         }
         if (ch.text != null && ch.text.length() > 0) {
             book.chapters.add(ch);
-        }
-    }
-
-    private static byte[] readAll(File f) throws IOException {
-        long flen = f.length();
-        int bufSize = (int) Math.min(flen >= 0 ? flen : 0, 50 * 1024 * 1024);
-        if (bufSize < 8192) {
-            bufSize = 8192;
-        }
-        ByteArrayOutputStream bos = new ByteArrayOutputStream(bufSize);
-        InputStream in = new FileInputStream(f);
-        try {
-            byte[] b = new byte[32768];
-            int n;
-            while ((n = in.read(b)) > 0) {
-                bos.write(b, 0, n);
-            }
-            return bos.toByteArray();
-        } finally {
-            in.close();
         }
     }
 

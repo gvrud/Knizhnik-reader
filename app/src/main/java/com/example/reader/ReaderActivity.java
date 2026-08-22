@@ -429,7 +429,11 @@ public class ReaderActivity extends Activity {
             @Override
             protected Book doInBackground(Void... params) {
                 try {
-                    return createParser(file.getName()).parse(file);
+                    Book parsed = createParser(file.getName()).parse(file);
+                    if (parsed != null) {
+                        preloadImages(parsed);
+                    }
+                    return parsed;
                 } catch (Exception e) {
                     error = e.getMessage();
                     return null;
@@ -913,30 +917,74 @@ public class ReaderActivity extends Activity {
                 .show();
     }
 
+    private void preloadImages(Book b) {
+        int maxWidth = getResources().getDisplayMetrics().widthPixels;
+        long totalBytes = 0;
+        long limit = 128L * 1024 * 1024;
+        int count = 0;
+        for (String src : b.images.keySet()) {
+            byte[] data = b.images.get(src);
+            if (data == null || data.length == 0) {
+                continue;
+            }
+            Bitmap bmp = decodeScaled(data, maxWidth);
+            if (bmp != null) {
+                b.bitmapCache.put("fb2:" + src, bmp);
+                b.bitmapCache.put("zip:" + src, bmp);
+                totalBytes += bmp.getByteCount();
+                count++;
+                if (totalBytes > limit || count >= 120) {
+                    break;
+                }
+            }
+        }
+        if (b.bitmapCache.isEmpty()) {
+            preloadDataUris(b, maxWidth, limit);
+        }
+    }
+
+    private void preloadDataUris(Book b, int maxWidth, long limit) {
+        long total = 0;
+        int count = 0;
+        for (Chapter ch : b.chapters) {
+            if (ch.html == null) {
+                continue;
+            }
+            String html = ch.html;
+            int i = 0;
+            String lower = html.toLowerCase(Locale.US);
+            while (true) {
+                int idx = lower.indexOf("data:", i);
+                if (idx < 0) {
+                    break;
+                }
+                int end = html.indexOf('"', idx);
+                if (end < 0) {
+                    break;
+                }
+                String uri = html.substring(idx, end);
+                byte[] data = decodeDataUri(uri);
+                if (data != null && data.length > 0) {
+                    Bitmap bmp = decodeScaled(data, maxWidth);
+                    if (bmp != null) {
+                        b.bitmapCache.put(uri, bmp);
+                        total += bmp.getByteCount();
+                        count++;
+                    }
+                }
+                i = end + 1;
+                if (total > limit || count >= 120) {
+                    return;
+                }
+            }
+        }
+    }
+
     private Bitmap getBookBitmap(String source) {
         if (book == null || source == null) {
             return null;
         }
-        Bitmap cached = book.bitmapCache.get(source);
-        if (cached != null) {
-            return cached;
-        }
-        byte[] data = null;
-        if (source.startsWith("data:")) {
-            data = decodeDataUri(source);
-        } else if (source.startsWith("fb2:")) {
-            data = book.images.get(source.substring(4));
-        } else if (source.startsWith("zip:")) {
-            data = book.images.get(source.substring(4));
-        }
-        if (data == null || data.length == 0) {
-            return null;
-        }
-        Bitmap bmp = decodeScaled(data, getResources().getDisplayMetrics().widthPixels);
-        if (bmp != null) {
-            book.bitmapCache.put(source, bmp);
-        }
-        return bmp;
+        return book.bitmapCache.get(source);
     }
 
     private byte[] decodeDataUri(String uri) {
@@ -967,6 +1015,9 @@ public class ReaderActivity extends Activity {
         }
         int sample = 1;
         while (w / (sample * 2) > maxWidth) {
+            sample *= 2;
+        }
+        while (h / (sample * 2) > 3000) {
             sample *= 2;
         }
         BitmapFactory.Options opts = new BitmapFactory.Options();
