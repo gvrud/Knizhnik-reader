@@ -920,20 +920,25 @@ public class ReaderActivity extends Activity {
     private void preloadImages(Book b) {
         int maxWidth = getResources().getDisplayMetrics().widthPixels;
         long totalBytes = 0;
-        long limit = 128L * 1024 * 1024;
+        long limit = 48L * 1024 * 1024;
         int count = 0;
         for (String src : b.images.keySet()) {
             byte[] data = b.images.get(src);
             if (data == null || data.length == 0) {
                 continue;
             }
-            Bitmap bmp = decodeScaled(data, maxWidth);
+            Bitmap bmp;
+            try {
+                bmp = decodeScaled(data, maxWidth);
+            } catch (OutOfMemoryError e) {
+                break;
+            }
             if (bmp != null) {
                 b.bitmapCache.put("fb2:" + src, bmp);
                 b.bitmapCache.put("zip:" + src, bmp);
                 totalBytes += bmp.getByteCount();
                 count++;
-                if (totalBytes > limit || count >= 120) {
+                if (totalBytes > limit || count >= 60) {
                     break;
                 }
             }
@@ -965,7 +970,12 @@ public class ReaderActivity extends Activity {
                 String uri = html.substring(idx, end);
                 byte[] data = decodeDataUri(uri);
                 if (data != null && data.length > 0) {
-                    Bitmap bmp = decodeScaled(data, maxWidth);
+                    Bitmap bmp;
+                    try {
+                        bmp = decodeScaled(data, maxWidth);
+                    } catch (OutOfMemoryError e) {
+                        return;
+                    }
                     if (bmp != null) {
                         b.bitmapCache.put(uri, bmp);
                         total += bmp.getByteCount();
@@ -973,7 +983,7 @@ public class ReaderActivity extends Activity {
                     }
                 }
                 i = end + 1;
-                if (total > limit || count >= 120) {
+                if (total > limit || count >= 60) {
                     return;
                 }
             }

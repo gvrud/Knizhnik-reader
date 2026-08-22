@@ -12,7 +12,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -20,7 +22,6 @@ import java.util.regex.Pattern;
 
 public class Fb2Parser implements BookParser {
 
-    private static final Pattern ENTITY_REF = Pattern.compile("&([a-zA-Z]+);");
     private static final Map<String, String> GREEK = new HashMap<String, String>();
 
     static {
@@ -92,7 +93,7 @@ public class Fb2Parser implements BookParser {
                 sb.append(buf, 0, n);
             }
             String xml = sb.toString();
-            return replaceGreekEntities(sanitizeXml(xml));
+            return cleanXml(xml);
         } finally {
             if (reader != null) {
                 try {
@@ -379,35 +380,74 @@ public class Fb2Parser implements BookParser {
             return;
         }
         if (ch.text != null && ch.text.length() > 0) {
-            book.chapters.add(ch);
+            splitChapter(book, ch);
         }
     }
 
-    private static String replaceGreekEntities(String xml) {
-        Matcher m = ENTITY_REF.matcher(xml);
-        StringBuilder sb = new StringBuilder(xml.length());
-        int pos = 0;
-        while (m.find()) {
-            String name = m.group(1).toLowerCase(Locale.US);
-            String replacement = GREEK.get(name);
-            if (replacement != null) {
-                sb.append(xml, pos, m.start());
-                sb.append(replacement);
-                pos = m.end();
-            } else {
-                sb.append(xml, pos, m.end());
-                pos = m.end();
+    private static void splitChapter(Book book, Chapter ch) {
+        final int MAX_CHARS = 60000;
+        final int MAX_IMAGES = 15;
+        if (ch.html == null || ch.html.length() < MAX_CHARS / 2) {
+            book.chapters.add(ch);
+            return;
+        }
+        String html = ch.html;
+        String text = ch.text;
+        List<String> parts = new ArrayList<String>();
+        int from = 0;
+        int count = 0;
+        int lastCut = 0;
+        for (int i = 0; i < html.length(); i++) {
+            if (html.charAt(i) == '<' && i + 3 < html.length()
+                    && html.startsWith("<img", i)) {
+                count++;
+            }
+            if (i - from >= MAX_CHARS || count >= MAX_IMAGES) {
+                parts.add(html.substring(from, i + 1));
+                from = i + 1;
+                count = 0;
+                lastCut = i + 1;
             }
         }
-        sb.append(xml, pos, xml.length());
-        return sb.toString();
+        if (from < html.length()) {
+            parts.add(html.substring(from));
+        }
+        if (parts.size() <= 1) {
+            book.chapters.add(ch);
+            return;
+        }
+        String baseTitle = ch.title == null ? "" : ch.title;
+        for (int p = 0; p < parts.size(); p++) {
+            String partHtml = parts.get(p);
+            String partText = HtmlUtil.collapseWhitespace(HtmlUtil.toPlainText(partHtml));
+            if (partText.length() == 0) {
+                continue;
+            }
+            Chapter part = new Chapter(
+                    p == 0 ? baseTitle : baseTitle + " (часть " + (p + 1) + ")", partText);
+            part.html = partHtml;
+            book.chapters.add(part);
+        }
     }
 
-    private static String sanitizeXml(String xml) {
+    private static String cleanXml(String xml) {
         StringBuilder sb = new StringBuilder(xml.length());
         int len = xml.length();
-        for (int i = 0; i < len; i++) {
+        int i = 0;
+        while (i < len) {
             char c = xml.charAt(i);
+            if (c == '&') {
+                int semi = xml.indexOf(';', i);
+                if (semi > i && semi - i <= 14) {
+                    String name = xml.substring(i + 1, semi).toLowerCase(Locale.US);
+                    String replacement = GREEK.get(name);
+                    if (replacement != null) {
+                        sb.append(replacement);
+                        i = semi + 1;
+                        continue;
+                    }
+                }
+            }
             boolean keep;
             if (c >= 0x20 && c <= 0xD7FF) {
                 keep = true;
@@ -415,7 +455,8 @@ public class Fb2Parser implements BookParser {
                 keep = true;
             } else if (c >= 0xE000 && c <= 0xFFFD) {
                 keep = true;
-            } else if (Character.isHighSurrogate(c) && i + 1 < len && Character.isLowSurrogate(xml.charAt(i + 1))) {
+            } else if (Character.isHighSurrogate(c) && i + 1 < len
+                    && Character.isLowSurrogate(xml.charAt(i + 1))) {
                 keep = true;
             } else if (Character.isLowSurrogate(c)) {
                 keep = false;
@@ -425,6 +466,7 @@ public class Fb2Parser implements BookParser {
             if (keep) {
                 sb.append(c);
             }
+            i++;
         }
         return sb.toString();
     }
