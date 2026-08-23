@@ -7,12 +7,14 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Html;
@@ -51,6 +53,7 @@ public class ReaderActivity extends Activity {
     private static final int MENU_FULLSCREEN = 4;
     private static final int MENU_SYNC = 5;
     private static final int MENU_REGISTER = 6;
+    private static final int REQ_PICK_DRIVE = 100;
     private static final int EDGE_ZONE = 20;
 
     private ScrollView scrollView;
@@ -922,41 +925,59 @@ public class ReaderActivity extends Activity {
     }
 
     private void showRegisterDialog() {
-        final android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
-        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
-        layout.setPadding(24, 8, 24, 8);
-
-        final EditText login = new EditText(this);
-        login.setHint(R.string.yandex_login_hint);
-        login.setSingleLine(true);
-        layout.addView(login);
-
-        final EditText pass = new EditText(this);
-        pass.setHint(R.string.yandex_pass_hint);
-        pass.setSingleLine(true);
-        pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        layout.addView(pass);
-
         new AlertDialog.Builder(this)
                 .setTitle(R.string.register_sync)
                 .setMessage(R.string.register_hint)
-                .setView(layout)
-                .setPositiveButton(R.string.save, new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.select_file, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        String l = login.getText().toString().trim();
-                        String p = pass.getText().toString().trim();
-                        if (l.length() == 0 || p.length() == 0) {
-                            toast(R.string.fill_all_fields);
-                            return;
-                        }
-                        SyncPrefs.setCredentials(ReaderActivity.this, l, p);
-                        toast(R.string.registered);
+                        pickDriveFile();
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    private void pickDriveFile() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE, "knizhnik-sync.json");
+        try {
+            startActivityForResult(intent, REQ_PICK_DRIVE);
+        } catch (Exception e) {
+            toast(R.string.no_file_manager);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQ_PICK_DRIVE && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            SyncPrefs.setDriveUri(this, data.getData().toString());
+            final Intent intent = getIntent();
+            final Uri fileUri = data.getData();
+            new AsyncTask<Void, Void, Void>() {
+                @Override
+                protected Void doInBackground(Void... params) {
+                    try {
+                        if (SyncManager.loadRemoteState(ReaderActivity.this) == null) {
+                            SyncManager.saveRemoteState(ReaderActivity.this,
+                                    "{\"books\":{}}");
+                        }
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void onPostExecute(Void v) {
+                    toast(R.string.registered);
+                }
+            }.execute();
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
     }
 
     private void syncCurrentBook() {

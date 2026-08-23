@@ -1,134 +1,78 @@
 package com.example.reader;
 
 import android.content.Context;
-import android.util.Base64;
+import android.net.Uri;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class SyncManager {
 
-    private static final String WEBDAV = "https://webdav.yandex.ru";
-    private static final String FOLDER = "Книжник";
-    private static final String FILE = "state.json";
-
     private SyncManager() {
     }
 
     public static String loadRemoteState(Context c) throws IOException {
-        String url = WEBDAV + "/" + encodePath(FOLDER + "/" + FILE);
-        HttpURLConnection conn = open(c, url, "GET");
+        String uriStr = SyncPrefs.getDriveUri(c);
+        if (uriStr.length() == 0) {
+            return null;
+        }
+        Uri uri = Uri.parse(uriStr);
+        InputStream in = null;
         try {
-            int code = conn.getResponseCode();
-            if (code == 404) {
+            in = c.getContentResolver().openInputStream(uri);
+            if (in == null) {
                 return null;
             }
-            if (code == 401) {
-                throw new IOException("Неверный логин или пароль");
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                bos.write(buf, 0, n);
             }
-            if (code != 200) {
-                throw new IOException("Ошибка загрузки: " + code);
-            }
-            return readBody(conn.getInputStream());
+            return new String(bos.toByteArray(), "UTF-8");
+        } catch (Exception e) {
+            throw new IOException("Не удалось открыть файл синхронизации: " + e.getMessage());
         } finally {
-            conn.disconnect();
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
         }
     }
 
     public static void saveRemoteState(Context c, String json) throws IOException {
-        ensureFolder(c);
-        String url = WEBDAV + "/" + encodePath(FOLDER + "/" + FILE);
-        HttpURLConnection conn = open(c, url, "PUT");
+        String uriStr = SyncPrefs.getDriveUri(c);
+        if (uriStr.length() == 0) {
+            throw new IOException("Файл синхронизации не выбран");
+        }
+        Uri uri = Uri.parse(uriStr);
+        OutputStream out = null;
         try {
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "application/json");
+            out = c.getContentResolver().openOutputStream(uri, "wt");
+            if (out == null) {
+                throw new IOException("Не удалось открыть файл для записи");
+            }
             byte[] body = json.getBytes("UTF-8");
-            conn.setFixedLengthStreamingMode(body.length);
-            OutputStream os = conn.getOutputStream();
-            os.write(body);
-            os.flush();
-            os.close();
-            int code = conn.getResponseCode();
-            if (code == 401) {
-                throw new IOException("Неверный логин или пароль");
-            }
-            if (code != 201 && code != 200 && code != 204) {
-                throw new IOException("Ошибка сохранения: " + code);
-            }
+            out.write(body);
+            out.flush();
+        } catch (Exception e) {
+            throw new IOException("Не удалось сохранить: " + e.getMessage());
         } finally {
-            conn.disconnect();
-        }
-    }
-
-    private static void ensureFolder(Context c) throws IOException {
-        String url = WEBDAV + "/" + encodePath(FOLDER);
-        HttpURLConnection conn = open(c, url, "MKCOL");
-        try {
-            int code = conn.getResponseCode();
-            if (code == 401) {
-                throw new IOException("Неверный логин или пароль");
-            }
-            // 201 - created, 405 - already exists, 301 - redirect
-            if (code != 201 && code != 405 && code != 301) {
-                throw new IOException("Ошибка создания папки: " + code);
-            }
-        } finally {
-            conn.disconnect();
-        }
-    }
-
-    private static HttpURLConnection open(Context c, String url, String method) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setConnectTimeout(20000);
-        conn.setReadTimeout(30000);
-        conn.setRequestProperty("User-Agent", "Knizhnik/1.7");
-        String cred = SyncPrefs.getLogin(c) + ":" + SyncPrefs.getPassword(c);
-        conn.setRequestProperty("Authorization",
-                "Basic " + Base64.encodeToString(cred.getBytes(), Base64.NO_WRAP));
-        try {
-            conn.setRequestMethod(method);
-        } catch (java.net.ProtocolException e) {
-            // MKCOL и другие нестандартные методы требуют рефлексии
-            try {
-                java.lang.reflect.Method m =
-                        HttpURLConnection.class.getMethod("setRequestMethod", String.class);
-                m.invoke(conn, method);
-            } catch (Exception ex) {
-                throw new IOException("Метод " + method + " не поддерживается");
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException e) {
+                    // ignore
+                }
             }
         }
-        return conn;
-    }
-
-    private static String encodePath(String path) throws IOException {
-        String[] parts = path.split("/");
-        StringBuilder sb = new StringBuilder();
-        for (String p : parts) {
-            if (sb.length() > 0) {
-                sb.append('/');
-            }
-            sb.append(URLEncoder.encode(p, "UTF-8").replace("+", "%20"));
-        }
-        return sb.toString();
-    }
-
-    private static String readBody(InputStream in) throws IOException {
-        BufferedInputStream bis = new BufferedInputStream(in);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        byte[] buf = new byte[8192];
-        int n;
-        while ((n = bis.read(buf)) > 0) {
-            bos.write(buf, 0, n);
-        }
-        return new String(bos.toByteArray(), "UTF-8");
     }
 
     public static String quote(String s) {
