@@ -52,10 +52,8 @@ public class ReaderActivity extends Activity {
     private static final int MENU_QUOTES = 3;
     private static final int MENU_FULLSCREEN = 4;
     private static final int MENU_SYNC = 5;
-    private static final int MENU_EXPORT = 6;
-    private static final int MENU_IMPORT = 7;
-    private static final int REQ_EXPORT = 100;
-    private static final int REQ_IMPORT = 101;
+    private static final int MENU_REGISTER = 6;
+    private static final int REQ_PICK_DRIVE = 100;
     private static final int EDGE_ZONE = 20;
 
     private ScrollView scrollView;
@@ -216,8 +214,7 @@ public class ReaderActivity extends Activity {
         menu.add(0, MENU_BOOKMARKS, 0, R.string.bookmarks);
         menu.add(0, MENU_QUOTES, 0, R.string.quotes);
         menu.add(0, MENU_SYNC, 0, R.string.sync);
-        menu.add(0, MENU_EXPORT, 0, R.string.export);
-        menu.add(0, MENU_IMPORT, 0, R.string.import_state);
+        menu.add(0, MENU_REGISTER, 0, R.string.register_sync);
         menu.add(0, MENU_HELP, 1, R.string.help);
         return true;
     }
@@ -240,12 +237,8 @@ public class ReaderActivity extends Activity {
             syncCurrentBook();
             return true;
         }
-        if (item.getItemId() == MENU_EXPORT) {
-            exportState();
-            return true;
-        }
-        if (item.getItemId() == MENU_IMPORT) {
-            importState();
+        if (item.getItemId() == MENU_REGISTER) {
+            showRegisterDialog();
             return true;
         }
         if (item.getItemId() == MENU_HELP) {
@@ -931,24 +924,27 @@ public class ReaderActivity extends Activity {
                 .show();
     }
 
-    private void exportState() {
+    private void showRegisterDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.register_sync)
+                .setMessage(R.string.register_hint)
+                .setPositiveButton(R.string.select_file, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        pickDriveFile();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void pickDriveFile() {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/json");
         intent.putExtra(Intent.EXTRA_TITLE, "knizhnik-sync.json");
         try {
-            startActivityForResult(intent, REQ_EXPORT);
-        } catch (Exception e) {
-            toast(R.string.no_file_manager);
-        }
-    }
-
-    private void importState() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/json");
-        try {
-            startActivityForResult(intent, REQ_IMPORT);
+            startActivityForResult(intent, REQ_PICK_DRIVE);
         } catch (Exception e) {
             toast(R.string.no_file_manager);
         }
@@ -956,40 +952,17 @@ public class ReaderActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-            super.onActivityResult(requestCode, resultCode, data);
-            return;
-        }
-        final Uri uri = data.getData();
-        if (requestCode == REQ_EXPORT) {
+        if (requestCode == REQ_PICK_DRIVE && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            SyncPrefs.setDriveUri(this, data.getData().toString());
+            final Uri uri = data.getData();
             new AsyncTask<Void, Void, String>() {
                 @Override
                 protected String doInBackground(Void... params) {
                     try {
-                        String state = SyncManager.loadLocalState(ReaderActivity.this);
-                        if (state == null) {
-                            state = "{\"books\":{}}";
+                        if (SyncManager.loadRemoteState(ReaderActivity.this) == null) {
+                            SyncManager.saveRemoteState(ReaderActivity.this, "{\"books\":{}}");
                         }
-                        SyncManager.writeUri(ReaderActivity.this, uri, state);
-                        return getString(R.string.export_done);
-                    } catch (Exception e) {
-                        return getString(R.string.sync_error) + " " + e.getMessage();
-                    }
-                }
-
-                @Override
-                protected void onPostExecute(String msg) {
-                    toast(msg);
-                }
-            }.execute();
-        } else if (requestCode == REQ_IMPORT) {
-            new AsyncTask<Void, Void, String>() {
-                @Override
-                protected String doInBackground(Void... params) {
-                    try {
-                        String content = SyncManager.readUri(ReaderActivity.this, uri);
-                        SyncManager.saveLocalState(ReaderActivity.this, content);
-                        return getString(R.string.import_done);
+                        return getString(R.string.registered);
                     } catch (Exception e) {
                         return getString(R.string.sync_error) + " " + e.getMessage();
                     }
@@ -1007,6 +980,10 @@ public class ReaderActivity extends Activity {
 
     private void syncCurrentBook() {
         if (book == null || stableKey == null) {
+            return;
+        }
+        if (!SyncPrefs.isRegistered(this)) {
+            toast(R.string.not_registered);
             return;
         }
         final ProgressDialog dlg = ProgressDialog.show(this, null,
@@ -1038,7 +1015,7 @@ public class ReaderActivity extends Activity {
     }
 
     private String doSync(String key) throws Exception {
-        String remote = SyncManager.loadLocalState(this);
+        String remote = SyncManager.loadRemoteState(this);
 
         int localChapter = Prefs.getChapter(this, key);
         int localPos = Prefs.getPosition(this, key);
@@ -1106,7 +1083,7 @@ public class ReaderActivity extends Activity {
         }
 
         String newState = upsertBookEntry(remote, key, chapter, pos, bookmarks, quotes);
-        SyncManager.saveLocalState(this, newState);
+        SyncManager.saveRemoteState(this, newState);
         return getString(R.string.sync_done);
     }
 
