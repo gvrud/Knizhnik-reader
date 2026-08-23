@@ -55,14 +55,63 @@ public class Fb2Parser implements BookParser {
         book.title = file.getName();
         book.author = "";
 
-        String xml = readAndPreprocess(file);
+        String charset = detectCharset(file);
 
         try {
-            parseXml(book, xml, file.getName());
+            if (hasGreekEntities(file, charset)) {
+                String xml = readAndPreprocess(file);
+                parseXml(book, xml, file.getName());
+            } else {
+                parseXmlStreaming(book, file, charset, file.getName());
+            }
         } catch (XmlPullParserException e) {
             throw new IOException("Ошибка разбора FB2: " + e.getMessage());
         }
         return book;
+    }
+
+    private static boolean hasGreekEntities(File file, String charset) throws IOException {
+        InputStream in = new FileInputStream(file);
+        try {
+            byte[] buf = new byte[65536];
+            int n = in.read(buf);
+            String s = new String(buf, 0, Math.max(0, n), charset);
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (c == '&') {
+                    int semi = s.indexOf(';', i);
+                    if (semi > i && semi - i <= 14) {
+                        String name = s.substring(i + 1, semi).toLowerCase(Locale.US);
+                        if (GREEK.containsKey(name)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        } finally {
+            in.close();
+        }
+    }
+
+    private void parseXmlStreaming(Book book, File file, String charset, String fileName)
+            throws IOException, XmlPullParserException {
+        InputStream in = new FileInputStream(file);
+        try {
+            XmlPullParser parser = Xml.newPullParser();
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+            parser.setInput(in, charset);
+            runParser(book, parser, fileName);
+        } finally {
+            in.close();
+        }
+    }
+
+    private void parseXml(Book book, String xml, String fileName) throws IOException, XmlPullParserException {
+        XmlPullParser parser = Xml.newPullParser();
+        parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+        parser.setInput(new StringReader(xml));
+        runParser(book, parser, fileName);
     }
 
     private static String readAndPreprocess(File file) throws IOException {
@@ -141,11 +190,8 @@ public class Fb2Parser implements BookParser {
         }
     }
 
-    private void parseXml(Book book, String xml, String fileName) throws IOException, XmlPullParserException {
-        XmlPullParser parser = Xml.newPullParser();
-        parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
-        parser.setInput(new StringReader(xml));
-
+    private void runParser(Book book, XmlPullParser parser, String fileName)
+            throws IOException, XmlPullParserException {
         String authorFirst = "";
         String authorLast = "";
 

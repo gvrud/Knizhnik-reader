@@ -49,6 +49,8 @@ public class ReaderActivity extends Activity {
     private static final int MENU_HELP = 2;
     private static final int MENU_QUOTES = 3;
     private static final int MENU_FULLSCREEN = 4;
+    private static final int MENU_SYNC = 5;
+    private static final int MENU_REGISTER = 6;
     private static final int EDGE_ZONE = 20;
 
     private ScrollView scrollView;
@@ -208,6 +210,8 @@ public class ReaderActivity extends Activity {
         menu.add(0, MENU_FULLSCREEN, 0, R.string.fullscreen_menu);
         menu.add(0, MENU_BOOKMARKS, 0, R.string.bookmarks);
         menu.add(0, MENU_QUOTES, 0, R.string.quotes);
+        menu.add(0, MENU_SYNC, 0, R.string.sync);
+        menu.add(0, MENU_REGISTER, 0, R.string.register_sync);
         menu.add(0, MENU_HELP, 1, R.string.help);
         return true;
     }
@@ -224,6 +228,14 @@ public class ReaderActivity extends Activity {
         }
         if (item.getItemId() == MENU_QUOTES) {
             showQuoteMenu();
+            return true;
+        }
+        if (item.getItemId() == MENU_SYNC) {
+            syncCurrentBook();
+            return true;
+        }
+        if (item.getItemId() == MENU_REGISTER) {
+            showRegisterDialog();
             return true;
         }
         if (item.getItemId() == MENU_HELP) {
@@ -907,6 +919,332 @@ public class ReaderActivity extends Activity {
                 })
                 .setNeutralButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    private void showRegisterDialog() {
+        final android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(24, 8, 24, 8);
+
+        final EditText login = new EditText(this);
+        login.setHint(R.string.yandex_login_hint);
+        login.setSingleLine(true);
+        layout.addView(login);
+
+        final EditText pass = new EditText(this);
+        pass.setHint(R.string.yandex_pass_hint);
+        pass.setSingleLine(true);
+        pass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(pass);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.register_sync)
+                .setMessage(R.string.register_hint)
+                .setView(layout)
+                .setPositiveButton(R.string.save, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String l = login.getText().toString().trim();
+                        String p = pass.getText().toString().trim();
+                        if (l.length() == 0 || p.length() == 0) {
+                            toast(R.string.fill_all_fields);
+                            return;
+                        }
+                        SyncPrefs.setCredentials(ReaderActivity.this, l, p);
+                        toast(R.string.registered);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void syncCurrentBook() {
+        if (book == null || stableKey == null) {
+            return;
+        }
+        if (!SyncPrefs.isRegistered(this)) {
+            toast(R.string.not_registered);
+            return;
+        }
+        final ProgressDialog dlg = ProgressDialog.show(this, null,
+                getString(R.string.wait), true, false);
+        final String key = stableKey;
+        new AsyncTask<Void, Void, String>() {
+            private String resultMessage;
+
+            @Override
+            protected String doInBackground(Void... params) {
+                try {
+                    return doSync(key);
+                } catch (Exception e) {
+                    resultMessage = e.getMessage();
+                    return null;
+                }
+            }
+
+            @Override
+            protected void onPostExecute(String msg) {
+                dlg.dismiss();
+                if (msg != null) {
+                    toast(msg);
+                } else if (resultMessage != null) {
+                    toast(getString(R.string.sync_error) + " " + resultMessage);
+                }
+            }
+        }.execute();
+    }
+
+    private String doSync(String key) throws Exception {
+        String remote = SyncManager.loadRemoteState(this);
+
+        int localChapter = Prefs.getChapter(this, key);
+        int localPos = Prefs.getPosition(this, key);
+        List<int[]> localBm = Prefs.getBookmarks(this, key);
+        List<String> localQt = Prefs.getQuotes(this, key);
+
+        boolean hasRemote = false;
+        int[] remotePos = null;
+
+        if (remote != null) {
+            String bookEntry = extractBookEntry(remote, key);
+            if (bookEntry != null) {
+                hasRemote = true;
+                remotePos = extractChapterPos(bookEntry);
+            }
+        }
+
+        boolean hasLocal = !localBm.isEmpty() || !localQt.isEmpty() || localPos != 0 || localChapter != 0;
+        if (!hasLocal && !hasRemote) {
+            return getString(R.string.nothing_to_sync);
+        }
+
+        int chapter = localChapter;
+        int pos = localPos;
+        List<int[]> bookmarks = new ArrayList<int[]>(localBm);
+        List<String> quotes = new ArrayList<String>(localQt);
+
+        if (hasRemote) {
+            String bookEntry = extractBookEntry(remote, key);
+            if (remotePos != null && remotePos[1] > pos) {
+                chapter = remotePos[0];
+                pos = remotePos[1];
+            } else if (!hasLocal && remotePos != null) {
+                chapter = remotePos[0];
+                pos = remotePos[1];
+            }
+            List<int[]> remoteBm = extractBookmarks(bookEntry);
+            for (int[] m : remoteBm) {
+                boolean found = false;
+                for (int[] x : bookmarks) {
+                    if (x[0] == m[0] && x[1] == m[1]) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    bookmarks.add(m);
+                }
+            }
+            List<String> remoteQt = extractQuotes(bookEntry);
+            for (String q : remoteQt) {
+                if (!quotes.contains(q)) {
+                    quotes.add(q);
+                }
+            }
+        }
+
+        Prefs.applyRemoteState(this, key, chapter, pos, bookmarks, quotes);
+        if (chapter != localChapter) {
+            chapterIndex = chapter >= 0 && chapter < book.chapters.size() ? chapter : chapterIndex;
+            displayChapter();
+        }
+        if (pos > 0) {
+            scrollToOffset(pos);
+        }
+
+        String newState = upsertBookEntry(remote, key, chapter, pos, bookmarks, quotes);
+        SyncManager.saveRemoteState(this, newState);
+        return getString(R.string.sync_done);
+    }
+
+    private static String extractBookEntry(String json, String key) {
+        int idx = json.indexOf(SyncManager.quote(key));
+        if (idx < 0) {
+            return null;
+        }
+        int colon = json.indexOf(':', idx);
+        if (colon < 0) {
+            return null;
+        }
+        int brace = json.indexOf('{', colon);
+        if (brace < 0) {
+            return null;
+        }
+        int depth = 0;
+        for (int i = brace; i < json.length(); i++) {
+            char ch = json.charAt(i);
+            if (ch == '{') {
+                depth++;
+            } else if (ch == '}') {
+                depth--;
+                if (depth == 0) {
+                    return json.substring(brace, i + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static int[] extractChapterPos(String entry) {
+        int ci = entry.indexOf("\"chapter\"");
+        int pi = entry.indexOf("\"pos\"");
+        int[] out = new int[]{0, 0};
+        if (ci >= 0) {
+            int colon = entry.indexOf(':', ci);
+            int end = entry.indexOf(',', colon);
+            if (end < 0) {
+                end = entry.indexOf('}', colon);
+            }
+            try {
+                out[0] = Integer.parseInt(entry.substring(colon + 1, end).trim());
+            } catch (NumberFormatException e) {
+                // ignore
+            }
+        }
+        if (pi >= 0) {
+            int colon = entry.indexOf(':', pi);
+            int end = entry.indexOf(',', colon);
+            if (end < 0) {
+                end = entry.indexOf('}', colon);
+            }
+            try {
+                out[1] = Integer.parseInt(entry.substring(colon + 1, end).trim());
+            } catch (NumberFormatException e) {
+                // ignore
+            }
+        }
+        return out;
+    }
+
+    private static List<int[]> extractBookmarks(String entry) {
+        List<int[]> out = new ArrayList<int[]>();
+        int bi = entry.indexOf("\"bookmarks\"");
+        if (bi < 0) {
+            return out;
+        }
+        List<String> arr = SyncManager.splitArray(entry.substring(bi));
+        for (String item : arr) {
+            String s = SyncManager.unquote(item.trim());
+            int sep = s.indexOf('|');
+            if (sep > 0) {
+                try {
+                    int ch = Integer.parseInt(s.substring(0, sep));
+                    int off = Integer.parseInt(s.substring(sep + 1));
+                    out.add(new int[]{ch, off});
+                } catch (NumberFormatException e) {
+                    // ignore
+                }
+            }
+        }
+        return out;
+    }
+
+    private static List<String> extractQuotes(String entry) {
+        List<String> out = new ArrayList<String>();
+        int qi = entry.indexOf("\"quotes\"");
+        if (qi < 0) {
+            return out;
+        }
+        List<String> arr = SyncManager.splitArray(entry.substring(qi));
+        for (String item : arr) {
+            String s = SyncManager.unquote(item.trim());
+            if (s.length() > 0) {
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    private static String upsertBookEntry(String remote, String key, int chapter, int pos,
+            List<int[]> bookmarks, List<String> quotes) {
+        StringBuilder entry = new StringBuilder();
+        entry.append(SyncManager.quote(key)).append(":{");
+        entry.append("\"chapter\":").append(chapter).append(',');
+        entry.append("\"pos\":").append(pos).append(',');
+        entry.append("\"bookmarks\":[");
+        for (int i = 0; i < bookmarks.size(); i++) {
+            if (i > 0) {
+                entry.append(',');
+            }
+            int[] m = bookmarks.get(i);
+            entry.append(SyncManager.quote(m[0] + "|" + m[1]));
+        }
+        entry.append("],\"quotes\":[");
+        for (int i = 0; i < quotes.size(); i++) {
+            if (i > 0) {
+                entry.append(',');
+            }
+            entry.append(SyncManager.quote(quotes.get(i)));
+        }
+        entry.append("]}");
+
+        if (remote == null) {
+            return "{\"books\":{" + entry + "}}";
+        }
+        int keyIdx = remote.indexOf(SyncManager.quote(key));
+        if (keyIdx < 0) {
+            int booksIdx = remote.indexOf("\"books\"");
+            int brace = remote.indexOf('{', booksIdx);
+            if (brace < 0) {
+                return remote;
+            }
+            int depth = 0;
+            int insert = -1;
+            for (int i = brace; i < remote.length(); i++) {
+                char ch = remote.charAt(i);
+                if (ch == '{') {
+                    depth++;
+                } else if (ch == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        insert = i;
+                        break;
+                    }
+                }
+            }
+            if (insert > 0) {
+                return remote.substring(0, insert) + (remote.charAt(insert - 1) == '{' ? "" : ",")
+                        + entry + "}";
+            }
+            return remote;
+        }
+        int start = remote.lastIndexOf('{', keyIdx);
+        int end = findEntryEnd(remote, keyIdx);
+        if (start < 0 || end <= start) {
+            return remote;
+        }
+        return remote.substring(0, start) + entry + remote.substring(end);
+    }
+
+    private static int findEntryEnd(String json, int keyIdx) {
+        int brace = json.indexOf('{', keyIdx);
+        if (brace < 0) {
+            return json.length();
+        }
+        int depth = 0;
+        for (int i = brace; i < json.length(); i++) {
+            char ch = json.charAt(i);
+            if (ch == '{') {
+                depth++;
+            } else if (ch == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i + 1;
+                }
+            }
+        }
+        return json.length();
     }
 
     private void showHelp() {

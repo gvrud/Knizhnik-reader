@@ -175,4 +175,30 @@ public final class Prefs {
     public static void setJustify(Context c, boolean v) {
         get(c).edit().putBoolean("justify", v).commit();
     }
+
+    public static void applyRemoteState(Context c, String key, int chapter, int pos,
+            List<int[]> bookmarks, List<String> quotes) {
+        SharedPreferences.Editor ed = get(c).edit();
+        ed.putInt("chapter_" + key, chapter);
+        ed.putInt("pos_" + key, pos);
+
+        StringBuilder bm = new StringBuilder();
+        for (int[] m : bookmarks) {
+            if (bm.length() > 0) {
+                bm.append(';');
+            }
+            bm.append(m[0]).append('|').append(m[1]);
+        }
+        ed.putString("bm_" + key, bm.toString());
+
+        StringBuilder qt = new StringBuilder();
+        for (String q : quotes) {
+            if (qt.length() > 0) {
+                qt.append('\u0001');
+            }
+            qt.append(q);
+        }
+        ed.putString("qt_" + key, qt.toString());
+        ed.commit();
+    }
 }
