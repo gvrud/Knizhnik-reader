@@ -4,6 +4,9 @@ import android.content.Context;
 import android.net.Uri;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -12,20 +15,51 @@ import java.util.List;
 
 public final class SyncManager {
 
+    private static final String FILE_NAME = "state.json";
+
     private SyncManager() {
     }
 
-    public static String loadRemoteState(Context c) throws IOException {
-        String uriStr = SyncPrefs.getDriveUri(c);
-        if (uriStr.length() == 0) {
+    private static File stateFile(Context c) {
+        return new File(c.getFilesDir(), FILE_NAME);
+    }
+
+    public static String loadLocalState(Context c) throws IOException {
+        File f = stateFile(c);
+        if (!f.exists()) {
             return null;
         }
-        Uri uri = Uri.parse(uriStr);
+        FileInputStream in = new FileInputStream(f);
+        try {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                bos.write(buf, 0, n);
+            }
+            return new String(bos.toByteArray(), "UTF-8");
+        } finally {
+            in.close();
+        }
+    }
+
+    public static void saveLocalState(Context c, String json) throws IOException {
+        File f = stateFile(c);
+        FileOutputStream out = new FileOutputStream(f);
+        try {
+            out.write(json.getBytes("UTF-8"));
+            out.flush();
+        } finally {
+            out.close();
+        }
+    }
+
+    public static String readUri(Context c, Uri uri) throws IOException {
         InputStream in = null;
         try {
             in = c.getContentResolver().openInputStream(uri);
             if (in == null) {
-                return null;
+                throw new IOException("Не удалось открыть файл");
             }
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             byte[] buf = new byte[8192];
@@ -35,7 +69,7 @@ public final class SyncManager {
             }
             return new String(bos.toByteArray(), "UTF-8");
         } catch (Exception e) {
-            throw new IOException("Не удалось открыть файл синхронизации: " + e.getMessage());
+            throw new IOException("Ошибка чтения файла: " + e.getMessage());
         } finally {
             if (in != null) {
                 try {
@@ -47,23 +81,17 @@ public final class SyncManager {
         }
     }
 
-    public static void saveRemoteState(Context c, String json) throws IOException {
-        String uriStr = SyncPrefs.getDriveUri(c);
-        if (uriStr.length() == 0) {
-            throw new IOException("Файл синхронизации не выбран");
-        }
-        Uri uri = Uri.parse(uriStr);
+    public static void writeUri(Context c, Uri uri, String json) throws IOException {
         OutputStream out = null;
         try {
             out = c.getContentResolver().openOutputStream(uri, "wt");
             if (out == null) {
                 throw new IOException("Не удалось открыть файл для записи");
             }
-            byte[] body = json.getBytes("UTF-8");
-            out.write(body);
+            out.write(json.getBytes("UTF-8"));
             out.flush();
         } catch (Exception e) {
-            throw new IOException("Не удалось сохранить: " + e.getMessage());
+            throw new IOException("Ошибка записи файла: " + e.getMessage());
         } finally {
             if (out != null) {
                 try {
