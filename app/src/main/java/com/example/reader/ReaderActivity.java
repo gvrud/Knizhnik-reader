@@ -1390,6 +1390,14 @@ public class ReaderActivity extends Activity {
             tts.stop();
         }
         updateTtsButton();
+        if (book != null && stableKey != null) {
+            int pos = ttsCharIndex;
+            if (pos > 0) {
+                Prefs.setChapter(this, stableKey, chapterIndex);
+                Prefs.setPosition(this, stableKey, pos);
+                scrollToOffsetForTts(pos);
+            }
+        }
     }
 
     private void updateTtsButton() {
@@ -1410,11 +1418,12 @@ public class ReaderActivity extends Activity {
             return;
         }
         int start = Math.max(0, Math.min(fromOffset, text.length()));
-        int end = Math.min(text.length(), start + 3000);
+        int end = Math.min(text.length(), start + 600);
         if (end < text.length()) {
             int lastSpace = text.lastIndexOf(' ', end);
             int lastNL = text.lastIndexOf('\n', end);
-            int cut = Math.max(lastSpace, lastNL);
+            int lastDot = text.lastIndexOf('.', end);
+            int cut = Math.max(lastSpace, Math.max(lastNL, lastDot));
             if (cut > start) {
                 end = cut;
             }
@@ -1426,9 +1435,34 @@ public class ReaderActivity extends Activity {
             return;
         }
         ttsCharIndex = end;
+        scrollToOffsetForTts(start);
         Bundle params = new Bundle();
         params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, android.media.AudioManager.STREAM_MUSIC);
         tts.speak(chunk, TextToSpeech.QUEUE_FLUSH, params, "reader_chunk");
+    }
+
+    private void scrollToOffsetForTts(final int offset) {
+        scrollView.post(new Runnable() {
+            @Override
+            public void run() {
+                Layout layout = textView.getLayout();
+                if (layout == null) {
+                    return;
+                }
+                int textLen = textView.getText().length();
+                if (textLen == 0) {
+                    return;
+                }
+                int pos = Math.min(offset, textLen - 1);
+                int line = layout.getLineForOffset(pos);
+                int y = layout.getLineTop(line);
+                int target = Math.max(0, y - 60);
+                int current = scrollView.getScrollY();
+                if (Math.abs(target - current) > 20) {
+                    scrollView.smoothScrollTo(0, target);
+                }
+            }
+        });
     }
 
     private void onTtsChunkDone() {

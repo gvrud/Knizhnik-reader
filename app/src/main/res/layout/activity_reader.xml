@@ -69,17 +69,6 @@
                 android:minHeight="0dp"
                 android:textSize="12sp"
                 android:text="@string/btn_justify" />
-
-            <ImageButton
-                android:id="@+id/btn_tts"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="6dp"
-                android:background="?android:attr/selectableItemBackground"
-                android:contentDescription="@string/tts_play"
-                android:src="@drawable/ic_ear" />
         </LinearLayout>
 
         <ScrollView
@@ -117,6 +106,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical">
+
+            <ImageButton
+                android:id="@+id/btn_tts"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="6dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/tts_play"
+                android:src="@drawable/ic_ear" />
 
             <Button
                 android:id="@+id/btn_prev_chapter"
