@@ -53,7 +53,8 @@ public class ReaderActivity extends Activity {
     private static final int MENU_FULLSCREEN = 4;
     private static final int MENU_SYNC = 5;
     private static final int MENU_REGISTER = 6;
-    private static final int REQ_PICK_DRIVE = 100;
+    private static final int REQ_CREATE_DRIVE = 100;
+    private static final int REQ_OPEN_DRIVE = 101;
     private static final int EDGE_ZONE = 20;
 
     private ScrollView scrollView;
@@ -928,23 +929,40 @@ public class ReaderActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle(R.string.register_sync)
                 .setMessage(R.string.register_hint)
-                .setPositiveButton(R.string.select_file, new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.create_new_file, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        pickDriveFile();
+                        createDriveFile();
+                    }
+                })
+                .setNeutralButton(R.string.choose_existing_file, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        chooseDriveFile();
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
 
-    private void pickDriveFile() {
+    private void createDriveFile() {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/json");
         intent.putExtra(Intent.EXTRA_TITLE, "knizhnik-sync.json");
         try {
-            startActivityForResult(intent, REQ_PICK_DRIVE);
+            startActivityForResult(intent, REQ_CREATE_DRIVE);
+        } catch (Exception e) {
+            toast(R.string.no_file_manager);
+        }
+    }
+
+    private void chooseDriveFile() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        try {
+            startActivityForResult(intent, REQ_OPEN_DRIVE);
         } catch (Exception e) {
             toast(R.string.no_file_manager);
         }
@@ -952,14 +970,16 @@ public class ReaderActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQ_PICK_DRIVE && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            SyncPrefs.setDriveUri(this, data.getData().toString());
+        if ((requestCode == REQ_CREATE_DRIVE || requestCode == REQ_OPEN_DRIVE)
+                && resultCode == RESULT_OK && data != null && data.getData() != null) {
             final Uri uri = data.getData();
+            final boolean create = requestCode == REQ_CREATE_DRIVE;
+            SyncPrefs.setDriveUri(this, uri.toString());
             new AsyncTask<Void, Void, String>() {
                 @Override
                 protected String doInBackground(Void... params) {
                     try {
-                        if (SyncManager.loadRemoteState(ReaderActivity.this) == null) {
+                        if (create && SyncManager.loadRemoteState(ReaderActivity.this) == null) {
                             SyncManager.saveRemoteState(ReaderActivity.this, "{\"books\":{}}");
                         }
                         return getString(R.string.registered);
