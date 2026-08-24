@@ -17,6 +17,8 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.text.Html;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
@@ -31,6 +33,7 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -53,8 +56,10 @@ public class ReaderActivity extends Activity {
     private static final int MENU_FULLSCREEN = 4;
     private static final int MENU_SYNC = 5;
     private static final int MENU_REGISTER = 6;
+    private static final int MENU_AUDIO_SETTINGS = 7;
     private static final int REQ_CREATE_DRIVE = 100;
     private static final int REQ_OPEN_DRIVE = 101;
+    private static final int REQ_TTS = 102;
     private static final int EDGE_ZONE = 20;
 
     private ScrollView scrollView;
@@ -73,6 +78,11 @@ public class ReaderActivity extends Activity {
     private boolean seekDragging;
     private int pendingOffset;
     private String stableKey;
+    private ImageButton btnTts;
+    private TextToSpeech tts;
+    private boolean ttsReady;
+    private boolean ttsPlaying;
+    private int ttsCharIndex;
 
     private final Html.ImageGetter imageGetter = new Html.ImageGetter() {
         @Override
@@ -151,6 +161,15 @@ public class ReaderActivity extends Activity {
             }
         });
 
+        btnTts = (ImageButton) findViewById(R.id.btn_tts);
+        btnTts.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleTts();
+            }
+        });
+        initTts();
+
         Button btnPrevCh = (Button) findViewById(R.id.btn_prev_chapter);
         Button btnNextCh = (Button) findViewById(R.id.btn_next_chapter);
         btnPrevCh.setOnClickListener(new View.OnClickListener() {
@@ -216,6 +235,7 @@ public class ReaderActivity extends Activity {
         menu.add(0, MENU_QUOTES, 0, R.string.quotes);
         menu.add(0, MENU_SYNC, 0, R.string.sync);
         menu.add(0, MENU_REGISTER, 0, R.string.register_sync);
+        menu.add(0, MENU_AUDIO_SETTINGS, 0, R.string.audio_settings);
         menu.add(0, MENU_HELP, 1, R.string.help);
         return true;
     }
@@ -240,6 +260,10 @@ public class ReaderActivity extends Activity {
         }
         if (item.getItemId() == MENU_REGISTER) {
             showRegisterDialog();
+            return true;
+        }
+        if (item.getItemId() == MENU_AUDIO_SETTINGS) {
+            openAudioSettings();
             return true;
         }
         if (item.getItemId() == MENU_HELP) {
@@ -1292,6 +1316,166 @@ public class ReaderActivity extends Activity {
                 .setMessage(R.string.help_text)
                 .setPositiveButton(R.string.help_ok, null)
                 .show();
+    }
+
+    private void initTts() {
+        tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (status == TextToSpeech.SUCCESS) {
+                    ttsReady = true;
+                    tts.setLanguage(Locale.getDefault());
+                    tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                        @Override
+                        public void onStart(String utteranceId) {
+                        }
+
+                        @Override
+                        public void onDone(String utteranceId) {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    onTtsChunkDone();
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onError(String utteranceId) {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    stopTts();
+                                }
+                            });
+                        }
+                    });
+                } else {
+                    ttsReady = false;
+                }
+            }
+        });
+    }
+
+    private void toggleTts() {
+        if (ttsPlaying) {
+            stopTts();
+        } else {
+            startTts();
+        }
+    }
+
+    private void startTts() {
+        if (book == null) {
+            return;
+        }
+        if (!ttsReady || tts == null) {
+            Intent intent = new Intent(TextToSpeech.Engine.ACTION_CHECK_TTS_DATA);
+            try {
+                startActivityForResult(intent, REQ_TTS);
+            } catch (Exception e) {
+                toast(R.string.tts_error);
+            }
+            return;
+        }
+        ttsPlaying = true;
+        updateTtsButton();
+        ttsCharIndex = currentOffset();
+        speakFrom(ttsCharIndex);
+    }
+
+    private void stopTts() {
+        ttsPlaying = false;
+        if (tts != null) {
+            tts.stop();
+        }
+        updateTtsButton();
+    }
+
+    private void updateTtsButton() {
+        if (btnTts == null) {
+            return;
+        }
+        btnTts.setImageResource(ttsPlaying ? R.drawable.ic_ear_off : R.drawable.ic_ear);
+    }
+
+    private void speakFrom(final int fromOffset) {
+        if (!ttsPlaying || book == null) {
+            return;
+        }
+        Chapter ch = book.chapters.get(chapterIndex);
+        String text = ch.text;
+        if (text == null || text.length() == 0) {
+            nextChapterForTts();
+            return;
+        }
+        int start = Math.max(0, Math.min(fromOffset, text.length()));
+        int end = Math.min(text.length(), start + 3000);
+        if (end < text.length()) {
+            int lastSpace = text.lastIndexOf(' ', end);
+            int lastNL = text.lastIndexOf('\n', end);
+            int cut = Math.max(lastSpace, lastNL);
+            if (cut > start) {
+                end = cut;
+            }
+        }
+        String chunk = text.substring(start, end);
+        if (chunk.trim().length() == 0) {
+            ttsCharIndex = end;
+            onTtsChunkDone();
+            return;
+        }
+        ttsCharIndex = end;
+        Bundle params = new Bundle();
+        params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, android.media.AudioManager.STREAM_MUSIC);
+        tts.speak(chunk, TextToSpeech.QUEUE_FLUSH, params, "reader_chunk");
+    }
+
+    private void onTtsChunkDone() {
+        if (!ttsPlaying || book == null) {
+            return;
+        }
+        Chapter ch = book.chapters.get(chapterIndex);
+        if (ttsCharIndex < ch.text.length()) {
+            speakFrom(ttsCharIndex);
+        } else {
+            nextChapterForTts();
+        }
+    }
+
+    private void nextChapterForTts() {
+        if (chapterIndex < book.chapters.size() - 1) {
+            chapterIndex++;
+            displayChapter();
+            ttsCharIndex = 0;
+            speakFrom(0);
+        } else {
+            stopTts();
+            toast(R.string.end_of_book);
+        }
+    }
+
+    private void openAudioSettings() {
+        Intent intent = new Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA);
+        try {
+            startActivity(intent);
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(TextToSpeech.Engine.ACTION_CHECK_TTS_DATA));
+            } catch (Exception e2) {
+                toast(R.string.tts_error);
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
+            tts = null;
+        }
+        super.onDestroy();
     }
 
     private void preloadImages(Book b) {
