@@ -98,6 +98,105 @@ public class ReaderActivity extends Activity {
         }
     };
 
+    private static String extractImgSrc(String tag) {
+        String lower = tag.toLowerCase(Locale.US);
+        int si = lower.indexOf("src");
+        if (si < 0) {
+            return null;
+        }
+        int eq = tag.indexOf('=', si + 3);
+        if (eq < 0) {
+            return null;
+        }
+        int j = eq + 1;
+        while (j < tag.length() && Character.isWhitespace(tag.charAt(j))) {
+            j++;
+        }
+        if (j >= tag.length()) {
+            return null;
+        }
+        char q = tag.charAt(j);
+        if (q == '"' || q == '\'') {
+            int qe = tag.indexOf(q, j + 1);
+            if (qe < 0) {
+                return null;
+            }
+            return tag.substring(j + 1, qe).trim();
+        }
+        int sp = tag.indexOf(' ', j);
+        if (sp < 0) {
+            sp = tag.length();
+        }
+        return tag.substring(j, sp).trim();
+    }
+
+    private CharSequence renderChapterHtml(String html) {
+        if (html == null) {
+            return "";
+        }
+        List<Bitmap> imgs = new ArrayList<Bitmap>();
+        StringBuilder cleaned = new StringBuilder(html.length());
+        int len = html.length();
+        int i = 0;
+        while (i < len) {
+            char c = html.charAt(i);
+            if (c == '<') {
+                int end = html.indexOf('>', i);
+                if (end < 0) {
+                    break;
+                }
+                String tag = html.substring(i + 1, end).trim();
+                String lower = tag.toLowerCase(Locale.US);
+                if (lower.startsWith("img")) {
+                    String src = extractImgSrc(tag);
+                    Bitmap bmp = src != null ? getBookBitmap(src) : null;
+                    if (bmp != null) {
+                        imgs.add(bmp);
+                        cleaned.append("[[IMG").append(imgs.size() - 1).append("]]");
+                    } else {
+                        cleaned.append('\n');
+                    }
+                    i = end + 1;
+                    continue;
+                }
+                if ("p".equals(lower) || "br".equals(lower) || "div".equals(lower)
+                        || "li".equals(lower) || "h1".equals(lower) || "h2".equals(lower)
+                        || "h3".equals(lower) || "h4".equals(lower) || "h5".equals(lower)
+                        || "h6".equals(lower) || "tr".equals(lower) || "hr".equals(lower)
+                        || "blockquote".equals(lower)) {
+                    cleaned.append('\n');
+                }
+                i = end + 1;
+            } else {
+                cleaned.append(c);
+                i++;
+            }
+        }
+        CharSequence processed = Html.fromHtml(cleaned.toString());
+        if (imgs.isEmpty()) {
+            return processed;
+        }
+        SpannableStringBuilder sb = new SpannableStringBuilder(processed);
+        for (int idx = 0; idx < imgs.size(); idx++) {
+            String token = "[[IMG" + idx + "]]";
+            int pos = -1;
+            while (true) {
+                int next = sb.toString().indexOf(token, pos + 1);
+                if (next < 0) {
+                    break;
+                }
+                Bitmap bmp = imgs.get(idx);
+                Drawable d = new BitmapDrawable(getResources(), bmp);
+                d.setBounds(0, 0, bmp.getWidth(), bmp.getHeight());
+                sb.replace(next, next + token.length(), "\uFFFC");
+                sb.setSpan(new android.text.style.ImageSpan(d), next, next + 1,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                pos = next;
+            }
+        }
+        return sb;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         dark = Prefs.isDark(this);
@@ -568,7 +667,7 @@ public class ReaderActivity extends Activity {
             }
         });
         if (ch.html != null) {
-            textView.setText(Html.fromHtml(ch.html, imageGetter, null));
+            textView.setText(renderChapterHtml(ch.html));
         } else {
             textView.setText(ch.text);
         }
@@ -1664,7 +1763,31 @@ public class ReaderActivity extends Activity {
         if (book == null || source == null) {
             return null;
         }
-        return book.bitmapCache.get(source);
+        Bitmap cached = book.bitmapCache.get(source);
+        if (cached != null) {
+            return cached;
+        }
+        byte[] data = null;
+        if (source.startsWith("data:")) {
+            data = decodeDataUri(source);
+        } else if (source.startsWith("fb2:")) {
+            data = book.images.get(source.substring(4));
+        } else if (source.startsWith("zip:")) {
+            data = book.images.get(source.substring(4));
+        }
+        if (data == null || data.length == 0) {
+            return null;
+        }
+        Bitmap bmp;
+        try {
+            bmp = decodeScaled(data, getResources().getDisplayMetrics().widthPixels);
+        } catch (OutOfMemoryError e) {
+            return null;
+        }
+        if (bmp != null) {
+            book.bitmapCache.put(source, bmp);
+        }
+        return bmp;
     }
 
     private byte[] decodeDataUri(String uri) {
