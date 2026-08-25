@@ -57,6 +57,7 @@ public class ReaderActivity extends Activity {
     private static final int MENU_SYNC = 5;
     private static final int MENU_REGISTER = 6;
     private static final int MENU_AUDIO_SETTINGS = 7;
+    private static final int MENU_PIPER = 8;
     private static final int REQ_CREATE_DRIVE = 100;
     private static final int REQ_OPEN_DRIVE = 101;
     private static final int REQ_TTS = 102;
@@ -236,6 +237,7 @@ public class ReaderActivity extends Activity {
         menu.add(0, MENU_SYNC, 0, R.string.sync);
         menu.add(0, MENU_REGISTER, 0, R.string.register_sync);
         menu.add(0, MENU_AUDIO_SETTINGS, 0, R.string.audio_settings);
+        menu.add(0, MENU_PIPER, 0, R.string.piper_menu);
         menu.add(0, MENU_HELP, 1, R.string.help);
         return true;
     }
@@ -264,6 +266,10 @@ public class ReaderActivity extends Activity {
         }
         if (item.getItemId() == MENU_AUDIO_SETTINGS) {
             openAudioSettings();
+            return true;
+        }
+        if (item.getItemId() == MENU_PIPER) {
+            piperSetup();
             return true;
         }
         if (item.getItemId() == MENU_HELP) {
@@ -1496,6 +1502,75 @@ public class ReaderActivity extends Activity {
         } catch (Exception e) {
             try {
                 startActivity(new Intent(TextToSpeech.Engine.ACTION_CHECK_TTS_DATA));
+            } catch (Exception e2) {
+                toast(R.string.tts_error);
+            }
+        }
+    }
+
+    private boolean isPackageInstalled(String pkg) {
+        try {
+            getPackageManager().getPackageInfo(pkg, 0);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void piperSetup() {
+        final boolean sherpa = isPackageInstalled("org.woheller69.ttsengine");
+        final boolean rhvoice = isPackageInstalled("com.github.olga_yakovleva.rhvoice.android");
+
+        if (sherpa || rhvoice) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.piper_menu)
+                    .setMessage(sherpa && rhvoice
+                            ? R.string.piper_installed_both
+                            : (sherpa ? R.string.piper_installed_sherpa : R.string.piper_installed_rhvoice))
+                    .setPositiveButton(R.string.choose_tts_engine, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            Intent intent = new Intent();
+                            intent.setAction(TextToSpeech.Engine.ACTION_CHECK_TTS_DATA);
+                            try {
+                                startActivity(intent);
+                            } catch (Exception e) {
+                                toast(R.string.tts_error);
+                            }
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        } else {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.piper_menu)
+                    .setMessage(R.string.piper_install_hint)
+                    .setPositiveButton(R.string.install_rhvoice, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            openMarket("com.github.olga_yakovleva.rhvoice.android");
+                        }
+                    })
+                    .setNeutralButton(R.string.install_sherpa, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            openMarket("org.woheller69.ttsengine");
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        }
+    }
+
+    private void openMarket(String pkg) {
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        try {
+            intent.setData(android.net.Uri.parse("market://details?id=" + pkg));
+            startActivity(intent);
+        } catch (Exception e) {
+            try {
+                intent.setData(android.net.Uri.parse("https://play.google.com/store/apps/details?id=" + pkg));
+                startActivity(intent);
             } catch (Exception e2) {
                 toast(R.string.tts_error);
             }
