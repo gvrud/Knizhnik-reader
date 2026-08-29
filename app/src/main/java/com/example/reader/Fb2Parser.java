@@ -206,6 +206,9 @@ public class Fb2Parser implements BookParser {
         boolean inSectionTitle = false;
         boolean captureMeta = false;
         boolean skipBody = false;
+        boolean inNotesBody = false;
+        String noteId = null;
+        StringBuilder noteText = null;
         String metaTag = null;
 
         int event = parser.getEventType();
@@ -214,10 +217,17 @@ public class Fb2Parser implements BookParser {
             if (event == XmlPullParser.START_TAG) {
                 if ("body".equals(name)) {
                     String bname = parser.getAttributeValue(null, "name");
-                    skipBody = bname != null
+                    inNotesBody = bname != null
                             && ("notes".equals(bname) || "footnotes".equals(bname) || "comments".equals(bname));
+                    skipBody = inNotesBody;
                 } else if (skipBody) {
-                    // ignore content of notes bodies
+                    if (inNotesBody && "section".equals(name)) {
+                        noteId = parser.getAttributeValue(null, "id");
+                        noteText = new StringBuilder();
+                    } else if (inNotesBody && noteText != null && ("p".equals(name) || "title".equals(name))) {
+                        // text inside note sections is captured in TEXT handler via noteText
+                        noteText.append(" ");
+                    }
                 } else if ("section".equals(name)) {
                     flushChapter(book, current);
                     current = new Chapter("", "");
@@ -243,10 +253,18 @@ public class Fb2Parser implements BookParser {
                     appendHtml(current, curHtml, bodyHtml, "<b>");
                 } else if ("emphasis".equals(name)) {
                     appendHtml(current, curHtml, bodyHtml, "<i>");
-                } else if ("image".equals(name)) {
+} else if ("image".equals(name)) {
                     String id = findHref(parser);
                     if (id != null && id.length() > 0) {
                         appendHtml(current, curHtml, bodyHtml, "<img src=\"fb2:" + id + "\" />");
+                    }
+                } else if ("a".equals(name)) {
+                    // link in main body text — make it clickable
+                    if (!skipBody) {
+                        String href = findHref(parser);
+                        if (href != null && href.length() > 0) {
+                            appendHtml(current, curHtml, bodyHtml, "<a href=\"fn:" + href + "\">");
+                        }
                     }
                 }
             } else if (event == XmlPullParser.TEXT || event == XmlPullParser.CDSECT) {
@@ -264,6 +282,8 @@ public class Fb2Parser implements BookParser {
                     } else if (paraBuf != null) {
                         paraBuf.append(text);
                     }
+                } else if (inNotesBody && noteText != null) {
+                    noteText.append(text);
                 }
             } else if (event == XmlPullParser.END_TAG) {
                 if ("body".equals(name)) {
@@ -280,6 +300,10 @@ public class Fb2Parser implements BookParser {
                     appendHtml(current, curHtml, bodyHtml, "</b>");
                 } else if ("emphasis".equals(name)) {
                     appendHtml(current, curHtml, bodyHtml, "</i>");
+                } else if ("a".equals(name)) {
+                    if (!skipBody) {
+                        appendHtml(current, curHtml, bodyHtml, "</a>");
+                    }
                 } else if ("title".equals(name)) {
                     if (inSectionTitle && current != null && titleBuf != null) {
                         current.title = titleBuf.toString().trim();
@@ -300,6 +324,12 @@ public class Fb2Parser implements BookParser {
                     binaryId = null;
                     binaryBuf = null;
                 } else if ("section".equals(name)) {
+                    if (inNotesBody && noteId != null && noteText != null) {
+                        String full = HtmlUtil.collapseWhitespace(noteText.toString().trim());
+                        if (full.length() > 0) {
+                            book.footnotes.put(noteId, full);
+                        }
+                    }
                     if (current != null) {
                         current.html = curHtml == null ? "" : curHtml.toString();
                         current.text = HtmlUtil.collapseWhitespace(HtmlUtil.toPlainText(current.html));
@@ -307,6 +337,8 @@ public class Fb2Parser implements BookParser {
                     flushChapter(book, current);
                     current = null;
                     curHtml = null;
+                    noteId = null;
+                    noteText = null;
                 } else if (captureMeta && metaBuf != null
                         && ("book-title".equals(name) || "first-name".equals(name)
                             || "middle-name".equals(name) || "last-name".equals(name))) {

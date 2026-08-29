@@ -23,7 +23,10 @@ import android.text.Html;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.method.LinkMovementMethod;
 import android.text.style.BackgroundColorSpan;
+import android.text.style.ClickableSpan;
+import android.text.style.URLSpan;
 import android.util.Base64;
 import android.view.ActionMode;
 import android.view.KeyEvent;
@@ -195,6 +198,57 @@ public class ReaderActivity extends Activity {
             }
         }
         return sb;
+    }
+
+    private CharSequence makeFootnotesClickable(CharSequence text) {
+        if (!(text instanceof Spanned)) {
+            return text;
+        }
+        SpannableStringBuilder sb = new SpannableStringBuilder(text);
+        URLSpan[] spans = sb.getSpans(0, sb.length(), URLSpan.class);
+        for (final URLSpan span : spans) {
+            String url = span.getURL();
+            if (url != null && url.startsWith("fn:")) {
+                final String noteId = url.substring(3);
+                int start = sb.getSpanStart(span);
+                int end = sb.getSpanEnd(span);
+                sb.removeSpan(span);
+                sb.setSpan(new ClickableSpan() {
+                    @Override
+                    public void onClick(View widget) {
+                        showFootnote(noteId);
+                    }
+                }, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+        return sb;
+    }
+
+    private void showFootnote(String noteId) {
+        if (book == null) {
+            return;
+        }
+        String note = book.footnotes.get(noteId);
+        if (note == null || note.length() == 0) {
+            return;
+        }
+        final int savedChapter = chapterIndex;
+        final int savedOffset = currentOffset();
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.footnote)
+                .setMessage(note)
+                .setPositiveButton(R.string.footnote_back, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        // return to previous reading position
+                        if (savedChapter != chapterIndex) {
+                            chapterIndex = savedChapter;
+                            displayChapter();
+                        }
+                        scrollToOffset(savedOffset);
+                    }
+                })
+                .show();
     }
 
     @Override
@@ -667,7 +721,10 @@ public class ReaderActivity extends Activity {
             }
         });
         if (ch.html != null) {
-            textView.setText(renderChapterHtml(ch.html));
+            CharSequence rendered = renderChapterHtml(ch.html);
+            rendered = makeFootnotesClickable(rendered);
+            textView.setText(rendered);
+            textView.setMovementMethod(LinkMovementMethod.getInstance());
         } else {
             textView.setText(ch.text);
         }

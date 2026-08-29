@@ -14,4 +14,5 @@ public class Book {
     public final List<Chapter> chapters = new ArrayList<Chapter>();
     public final Map<String, byte[]> images = new HashMap<String, byte[]>();
     public final Map<String, Bitmap> bitmapCache = new HashMap<String, Bitmap>();
+    public final Map<String, String> footnotes = new HashMap<String, String>();
 }
