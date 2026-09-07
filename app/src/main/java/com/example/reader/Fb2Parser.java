@@ -248,22 +248,44 @@ public class Fb2Parser implements BookParser {
                 } else if ("p".equals(name) || "v".equals(name)) {
                     paraBuf = new StringBuilder();
                 } else if ("empty-line".equals(name)) {
-                    appendHtml(current, curHtml, bodyHtml, "<br />");
+                    String inline = "<br />";
+                    if (paraBuf != null) {
+                        paraBuf.append(inline);
+                    } else {
+                        appendHtml(current, curHtml, bodyHtml, inline);
+                    }
                 } else if ("strong".equals(name)) {
-                    appendHtml(current, curHtml, bodyHtml, "<b>");
+                    if (paraBuf != null) {
+                        paraBuf.append("<b>");
+                    } else {
+                        appendHtml(current, curHtml, bodyHtml, "<b>");
+                    }
                 } else if ("emphasis".equals(name)) {
-                    appendHtml(current, curHtml, bodyHtml, "<i>");
-} else if ("image".equals(name)) {
+                    if (paraBuf != null) {
+                        paraBuf.append("<i>");
+                    } else {
+                        appendHtml(current, curHtml, bodyHtml, "<i>");
+                    }
+                } else if ("image".equals(name)) {
                     String id = findHref(parser);
                     if (id != null && id.length() > 0) {
-                        appendHtml(current, curHtml, bodyHtml, "<img src=\"fb2:" + id + "\" />");
+                        String img = "<img src=\"fb2:" + id + "\" />";
+                        if (paraBuf != null) {
+                            paraBuf.append(img);
+                        } else {
+                            appendHtml(current, curHtml, bodyHtml, img);
+                        }
                     }
                 } else if ("a".equals(name)) {
-                    // link in main body text — make it clickable
                     if (!skipBody) {
                         String href = findHref(parser);
                         if (href != null && href.length() > 0) {
-                            appendHtml(current, curHtml, bodyHtml, "<a href=\"fn:" + href + "\">");
+                            String a = "<a href=\"fn:" + href + "\">";
+                            if (paraBuf != null) {
+                                paraBuf.append(a);
+                            } else {
+                                appendHtml(current, curHtml, bodyHtml, a);
+                            }
                         }
                     }
                 }
@@ -286,23 +308,52 @@ public class Fb2Parser implements BookParser {
                     noteText.append(text);
                 }
             } else if (event == XmlPullParser.END_TAG) {
-                if ("body".equals(name)) {
+                if ("section".equals(name)) {
+                    if (inNotesBody && noteId != null && noteText != null) {
+                        String full = HtmlUtil.collapseWhitespace(noteText.toString().trim());
+                        if (full.length() > 0) {
+                            book.footnotes.put(noteId, full);
+                        }
+                    }
+                    noteId = null;
+                    noteText = null;
+                    if (!skipBody && current != null) {
+                        current.html = curHtml == null ? "" : curHtml.toString();
+                        current.text = HtmlUtil.collapseWhitespace(HtmlUtil.toPlainText(current.html));
+                        flushChapter(book, current);
+                        current = null;
+                        curHtml = null;
+                    }
+                } else if ("body".equals(name)) {
                     skipBody = false;
+                    inNotesBody = false;
                 } else if (skipBody) {
                     // ignore
                 } else if ("p".equals(name) || "v".equals(name)) {
                     if (paraBuf != null) {
                         appendHtml(current, curHtml, bodyHtml,
-                                "<p>" + HtmlUtil.escape(paraBuf.toString()) + "</p>");
+                                "<p>" + escapeInlineHtml(paraBuf.toString()) + "</p>");
                         paraBuf = null;
                     }
                 } else if ("strong".equals(name)) {
-                    appendHtml(current, curHtml, bodyHtml, "</b>");
+                    if (paraBuf != null) {
+                        paraBuf.append("</b>");
+                    } else {
+                        appendHtml(current, curHtml, bodyHtml, "</b>");
+                    }
                 } else if ("emphasis".equals(name)) {
-                    appendHtml(current, curHtml, bodyHtml, "</i>");
+                    if (paraBuf != null) {
+                        paraBuf.append("</i>");
+                    } else {
+                        appendHtml(current, curHtml, bodyHtml, "</i>");
+                    }
                 } else if ("a".equals(name)) {
                     if (!skipBody) {
-                        appendHtml(current, curHtml, bodyHtml, "</a>");
+                        if (paraBuf != null) {
+                            paraBuf.append("</a>");
+                        } else {
+                            appendHtml(current, curHtml, bodyHtml, "</a>");
+                        }
                     }
                 } else if ("title".equals(name)) {
                     if (inSectionTitle && current != null && titleBuf != null) {
@@ -323,22 +374,6 @@ public class Fb2Parser implements BookParser {
                     }
                     binaryId = null;
                     binaryBuf = null;
-                } else if ("section".equals(name)) {
-                    if (inNotesBody && noteId != null && noteText != null) {
-                        String full = HtmlUtil.collapseWhitespace(noteText.toString().trim());
-                        if (full.length() > 0) {
-                            book.footnotes.put(noteId, full);
-                        }
-                    }
-                    if (current != null) {
-                        current.html = curHtml == null ? "" : curHtml.toString();
-                        current.text = HtmlUtil.collapseWhitespace(HtmlUtil.toPlainText(current.html));
-                    }
-                    flushChapter(book, current);
-                    current = null;
-                    curHtml = null;
-                    noteId = null;
-                    noteText = null;
                 } else if (captureMeta && metaBuf != null
                         && ("book-title".equals(name) || "first-name".equals(name)
                             || "middle-name".equals(name) || "last-name".equals(name))) {
@@ -434,6 +469,54 @@ public class Fb2Parser implements BookParser {
         } else {
             bodyHtml.append(s);
         }
+    }
+
+    private static String escapeInlineHtml(String s) {
+        if (s == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        int i = 0;
+        int n = s.length();
+        while (i < n) {
+            char c = s.charAt(i);
+            if (c == '<') {
+                int end = s.indexOf('>', i);
+                if (end > i && end - i <= 80) {
+                    String tag = s.substring(i + 1, end).trim().toLowerCase(Locale.US);
+                    String name = tag;
+                    int sp = tag.indexOf(' ');
+                    if (sp > 0) {
+                        name = tag.substring(0, sp);
+                    }
+                    boolean closing = name.startsWith("/");
+                    String nm = closing ? name.substring(1) : name;
+                    boolean known = nm.equals("a") || nm.equals("b") || nm.equals("i")
+                            || nm.equals("img") || nm.equals("br");
+                    if (known) {
+                        sb.append('<').append(tag).append('>');
+                        i = end + 1;
+                        continue;
+                    }
+                }
+                sb.append("&lt;");
+                i++;
+                continue;
+            }
+            if (c == '&') {
+                sb.append("&amp;");
+                i++;
+                continue;
+            }
+            if (c == '>') {
+                sb.append("&gt;");
+                i++;
+                continue;
+            }
+            sb.append(c);
+            i++;
+        }
+        return sb.toString();
     }
 
     private static String findHref(XmlPullParser p) {

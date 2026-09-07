@@ -165,6 +165,16 @@ public class ReaderActivity extends Activity {
                     i = end + 1;
                     continue;
                 }
+                if (lower.startsWith("a ")) {
+                    cleaned.append('<').append(tag).append('>');
+                    i = end + 1;
+                    continue;
+                }
+                if (lower.startsWith("/a")) {
+                    cleaned.append("</a>");
+                    i = end + 1;
+                    continue;
+                }
                 if ("p".equals(lower) || "br".equals(lower) || "div".equals(lower)
                         || "li".equals(lower) || "h1".equals(lower) || "h2".equals(lower)
                         || "h3".equals(lower) || "h4".equals(lower) || "h5".equals(lower)
@@ -234,14 +244,8 @@ public class ReaderActivity extends Activity {
         final int savedChapter = chapterIndex;
         final int savedOffset = currentOffset();
         List<String> ids = new ArrayList<>();
-        if (noteId != null && book.footnotes.containsKey(noteId)) {
-            ids.add(noteId);
-        }
         for (Map.Entry<String, String> e : book.footnotes.entrySet()) {
-            String k = e.getKey();
-            if (k != null && k.matches("\\d+") && !k.equals(noteId)) {
-                ids.add(k);
-            }
+            ids.add(e.getKey());
         }
         if (ids.isEmpty()) {
             return;
@@ -249,9 +253,21 @@ public class ReaderActivity extends Activity {
         Collections.sort(ids, new Comparator<String>() {
             @Override
             public int compare(String a, String b) {
-                long ia = a.matches("\\d+") ? Long.parseLong(a) : Long.MAX_VALUE;
-                long ib = b.matches("\\d+") ? Long.parseLong(b) : Long.MAX_VALUE;
+                long ia = trailingNumber(a);
+                long ib = trailingNumber(b);
                 return Long.compare(ia, ib);
+            }
+            private long trailingNumber(String s) {
+                int i = s.length() - 1;
+                while (i >= 0 && Character.isDigit(s.charAt(i))) {
+                    i--;
+                }
+                if (i == s.length() - 1) return Long.MAX_VALUE;
+                try {
+                    return Long.parseLong(s.substring(i + 1));
+                } catch (NumberFormatException e) {
+                    return Long.MAX_VALUE;
+                }
             }
         });
         List<String> ordered = new ArrayList<>();
