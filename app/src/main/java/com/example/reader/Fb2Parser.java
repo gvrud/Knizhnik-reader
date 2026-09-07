@@ -224,7 +224,7 @@ public class Fb2Parser implements BookParser {
                     if (inNotesBody && "section".equals(name)) {
                         noteId = parser.getAttributeValue(null, "id");
                         noteText = new StringBuilder();
-                    } else if (inNotesBody && noteText != null && ("p".equals(name) || "title".equals(name))) {
+                    } else if (inNotesBody && noteText != null && ("p".equals(name) || "title".equals(name) || "cite".equals(name))) {
                         // text inside note sections is captured in TEXT handler via noteText
                         noteText.append(" ");
                     }

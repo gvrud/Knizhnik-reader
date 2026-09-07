@@ -8,8 +8,8 @@ android {
         applicationId 'com.example.reader'
         minSdkVersion 14
         targetSdkVersion 34
-        versionCode 19
-        versionName '1.9'
+        versionCode 20
+        versionName '1.9.1'
     }
 
     compileOptions {

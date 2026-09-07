@@ -45,8 +45,11 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class ReaderActivity extends Activity {
 
@@ -228,19 +231,49 @@ public class ReaderActivity extends Activity {
         if (book == null) {
             return;
         }
-        String note = book.footnotes.get(noteId);
-        if (note == null || note.length() == 0) {
-            return;
-        }
         final int savedChapter = chapterIndex;
         final int savedOffset = currentOffset();
+        List<String> ids = new ArrayList<>();
+        if (noteId != null && book.footnotes.containsKey(noteId)) {
+            ids.add(noteId);
+        }
+        for (Map.Entry<String, String> e : book.footnotes.entrySet()) {
+            String k = e.getKey();
+            if (k != null && k.matches("\\d+") && !k.equals(noteId)) {
+                ids.add(k);
+            }
+        }
+        if (ids.isEmpty()) {
+            return;
+        }
+        Collections.sort(ids, new Comparator<String>() {
+            @Override
+            public int compare(String a, String b) {
+                long ia = a.matches("\\d+") ? Long.parseLong(a) : Long.MAX_VALUE;
+                long ib = b.matches("\\d+") ? Long.parseLong(b) : Long.MAX_VALUE;
+                return Long.compare(ia, ib);
+            }
+        });
+        List<String> ordered = new ArrayList<>();
+        for (String id : ids) {
+            ordered.add(book.footnotes.get(id));
+        }
+        String firstNote = book.footnotes.get(noteId);
+        int initial = firstNote != null ? ordered.indexOf(firstNote) : -1;
+        if (initial == -1) {
+            initial = 0;
+        }
+        showFootnoteDialog(ordered.get(initial), initial, ordered, savedChapter, savedOffset);
+    }
+
+    private void showFootnoteDialog(String note, int index, final List<String> notes,
+            final int savedChapter, final int savedOffset) {
         new AlertDialog.Builder(this)
-                .setTitle(R.string.footnote)
+                .setTitle(getString(R.string.footnote) + " (" + (index + 1) + "/" + notes.size() + ")")
                 .setMessage(note)
                 .setPositiveButton(R.string.footnote_back, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        // return to previous reading position
                         if (savedChapter != chapterIndex) {
                             chapterIndex = savedChapter;
                             displayChapter();
@@ -248,6 +281,21 @@ public class ReaderActivity extends Activity {
                         scrollToOffset(savedOffset);
                     }
                 })
+                .setNeutralButton("◀", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        int prev = (index - 1 + notes.size()) % notes.size();
+                        showFootnoteDialog(notes.get(prev), prev, notes, savedChapter, savedOffset);
+                    }
+                })
+                .setPositiveButton("▶", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        int next = (index + 1) % notes.size();
+                        showFootnoteDialog(notes.get(next), next, notes, savedChapter, savedOffset);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
 
