@@ -17,6 +17,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.text.Html;
@@ -90,6 +91,7 @@ public class ReaderActivity extends Activity {
     private boolean ttsReady;
     private boolean ttsPlaying;
     private int ttsCharIndex;
+    private PowerManager.WakeLock ttsWakeLock;
 
     private final Html.ImageGetter imageGetter = new Html.ImageGetter() {
         @Override
@@ -1606,12 +1608,41 @@ public class ReaderActivity extends Activity {
         }
         ttsPlaying = true;
         updateTtsButton();
+        acquireTtsWakeLock();
         ttsCharIndex = currentOffset();
         speakFrom(ttsCharIndex);
     }
 
+    private void acquireTtsWakeLock() {
+        if (ttsWakeLock != null && ttsWakeLock.isHeld()) {
+            return;
+        }
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                ttsWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "reader:tts");
+                ttsWakeLock.setReferenceCounted(false);
+                ttsWakeLock.acquire();
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    private void releaseTtsWakeLock() {
+        if (ttsWakeLock != null && ttsWakeLock.isHeld()) {
+            try {
+                ttsWakeLock.release();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        ttsWakeLock = null;
+    }
+
     private void stopTts() {
         ttsPlaying = false;
+        releaseTtsWakeLock();
         if (tts != null) {
             tts.stop();
         }
@@ -1799,6 +1830,7 @@ public class ReaderActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        releaseTtsWakeLock();
         if (tts != null) {
             tts.stop();
             tts.shutdown();

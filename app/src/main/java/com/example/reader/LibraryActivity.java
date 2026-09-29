@@ -214,20 +214,22 @@ public class LibraryActivity extends Activity {
 
     private void copyOpenedBook(Uri uri) {
         new AsyncTask<Uri, Void, File>() {
+            private String error;
+
             @Override
             protected File doInBackground(Uri... params) {
                 Uri u = params[0];
                 InputStream in = null;
                 FileOutputStream out = null;
                 try {
+                    String name = resolveFileName(u);
+                    if (name == null || !isSupportedExt(name)) {
+                        error = getString(R.string.unsupported_format);
+                        return null;
+                    }
                     in = getContentResolver().openInputStream(u);
                     if (in == null) {
                         return null;
-                    }
-                    String name = u.getLastPathSegment();
-                    if (name == null || !(name.endsWith(".fb2") || name.endsWith(".epub")
-                            || name.endsWith(".mobi"))) {
-                        name = "opened.book";
                     }
                     File dir = new File(getFilesDir(), "books");
                     if (!dir.exists()) {
@@ -273,12 +275,47 @@ public class LibraryActivity extends Activity {
             @Override
             protected void onPostExecute(File f) {
                 if (f == null) {
-                    toast(R.string.cant_open);
+                    toast(error != null ? error : getString(R.string.cant_open));
                 } else {
                     openBook(f);
                 }
             }
         }.execute(uri);
+    }
+
+    private String resolveFileName(Uri u) {
+        String name = null;
+        try {
+            String[] proj = {android.provider.OpenableColumns.DISPLAY_NAME};
+            android.database.Cursor c = getContentResolver().query(u, proj, null, null, null);
+            if (c != null) {
+                try {
+                    if (c.moveToFirst()) {
+                        name = c.getString(0);
+                    }
+                } finally {
+                    c.close();
+                }
+            }
+        } catch (Exception e) {
+            // fall through
+        }
+        if (name == null) {
+            name = u.getLastPathSegment();
+        }
+        if (name == null) {
+            name = "";
+        }
+        int slash = name.lastIndexOf('/');
+        if (slash >= 0) {
+            name = name.substring(slash + 1);
+        }
+        return name;
+    }
+
+    private static boolean isSupportedExt(String name) {
+        String n = name.toLowerCase(java.util.Locale.US);
+        return n.endsWith(".fb2") || n.endsWith(".epub") || n.endsWith(".mobi") || n.endsWith(".fb2.zip");
     }
 
     private void openBook(File f) {
@@ -297,5 +334,9 @@ public class LibraryActivity extends Activity {
 
     private void toast(int res) {
         Toast.makeText(this, res, Toast.LENGTH_SHORT).show();
+    }
+
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 }

@@ -13,6 +13,7 @@
     <string name="loading">Открываем книгу…</string>
     <string name="wait">Подождите…</string>
     <string name="cant_open">Не удалось открыть книгу</string>
+    <string name="unsupported_format">Неподдерживаемый формат файла. Поддерживаются FB2, EPUB, MOBI</string>
     <string name="toc">Оглавление</string>
     <string name="chapter">Глава</string>
     <string name="search">Поиск</string>
