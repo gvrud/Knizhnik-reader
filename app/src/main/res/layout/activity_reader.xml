@@ -22,7 +22,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:textSize="12dp"
+                android:textSize="36dp"
                 android:text="@string/btn_toc" />
 
             <Button
@@ -31,7 +31,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:textSize="12dp"
+                android:textSize="36dp"
                 android:text="@string/btn_search" />
 
             <Button
@@ -40,7 +40,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:textSize="12dp"
+                android:textSize="36dp"
                 android:text="@string/btn_minus" />
 
             <Button
@@ -49,7 +49,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:textSize="12dp"
+                android:textSize="36dp"
                 android:text="@string/btn_plus" />
 
             <Button
@@ -58,7 +58,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:textSize="12dp"
+                android:textSize="36dp"
                 android:text="@string/btn_theme" />
 
             <Button
@@ -67,7 +67,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:textSize="12dp"
+                android:textSize="36dp"
                 android:text="@string/btn_justify" />
         </LinearLayout>
 
@@ -125,7 +125,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:textSize="16sp"
+                android:textSize="48dp"
                 android:text="&lt;" />
 
             <TextView
@@ -145,7 +145,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:textSize="16sp"
+                android:textSize="48dp"
                 android:text="&gt;" />
         </LinearLayout>
     </LinearLayout>

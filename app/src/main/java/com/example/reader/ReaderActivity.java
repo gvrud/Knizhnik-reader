@@ -370,7 +370,7 @@ public class ReaderActivity extends Activity {
         btnPlus.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                changeFont(2);
+                changeFont(4);
             }
         });
         btnTheme.setOnClickListener(new View.OnClickListener() {

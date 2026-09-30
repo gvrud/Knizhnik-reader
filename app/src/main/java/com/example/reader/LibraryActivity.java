@@ -50,6 +50,8 @@ public class LibraryActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        boolean dark = Prefs.isDark(this);
+        setTheme(dark ? R.style.AppTheme_Dark : R.style.AppTheme);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_library);
 
