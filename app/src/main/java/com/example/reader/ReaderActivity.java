@@ -54,6 +54,11 @@ import java.util.Map;
 
 public class ReaderActivity extends Activity {
 
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(UiTools.fixFontScale(newBase));
+    }
+
     private static final int MIN_FONT = 10;
     private static final int MAX_FONT = 42;
     private static final int HIGHLIGHT = 0xFFFFEB3B;
