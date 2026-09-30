@@ -325,7 +325,7 @@ public class ReaderActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         dark = Prefs.isDark(this);
-        setTheme(dark ? android.R.style.Theme_Holo : android.R.style.Theme_Holo_Light_DarkActionBar);
+        setTheme(dark ? R.style.AppTheme_Dark : R.style.AppTheme);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_reader);
 
