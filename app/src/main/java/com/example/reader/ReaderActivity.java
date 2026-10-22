@@ -83,6 +83,7 @@ public class ReaderActivity extends Activity {
     private TextView chapterLabel;
     private View contentView;
     private LinearLayout topBar;
+    private LinearLayout bottomBar;
     private SeekBar pageSeek;
     private LinearLayout root;
 
@@ -337,6 +338,7 @@ public class ReaderActivity extends Activity {
 
         root = (LinearLayout) findViewById(R.id.reader_root);
         topBar = (LinearLayout) findViewById(R.id.reader_top_bar);
+        bottomBar = (LinearLayout) findViewById(R.id.reader_bottom_bar);
         scrollView = (ScrollView) findViewById(R.id.scroll_view);
         textView = (TextView) findViewById(R.id.book_text);
         chapterLabel = (TextView) findViewById(R.id.chapter_label);
@@ -568,45 +570,27 @@ public class ReaderActivity extends Activity {
     }
 
     private void setupGestureDetector() {
-        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
-            private static final int SWIPE_THRESHOLD = 60;
-            private static final int SWIPE_VELOCITY_THRESHOLD = 200;
+        if (scrollView instanceof SoftScrollView) {
+            ((SoftScrollView) scrollView).setOnHorizontalSwipeListener(
+                    new SoftScrollView.OnHorizontalSwipeListener() {
+                        @Override
+                        public void onSwipeLeft() {
+                            pageForward();
+                        }
 
-            @Override
-            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-                if (e1 == null || e2 == null) {
-                    return false;
-                }
-                float dx = e2.getX() - e1.getX();
-                float dy = e2.getY() - e1.getY();
-                if (Math.abs(dx) > Math.abs(dy)
-                        && Math.abs(dx) > SWIPE_THRESHOLD
-                        && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                    if (dx < 0) {
-                        pageForward();
-                    } else {
-                        pageBack();
-                    }
-                    return true;
-                }
-                return false;
-            }
-        });
-        scrollView.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                if (gestureDetector != null && event != null) {
-                    gestureDetector.onTouchEvent(event);
-                }
-                return false;
-            }
-        });
+                        @Override
+                        public void onSwipeRight() {
+                            pageBack();
+                        }
+                    });
+        }
     }
 
     private void toggleFullscreen() {
         fullscreen = !fullscreen;
         if (fullscreen) {
             topBar.setVisibility(View.GONE);
+            bottomBar.setVisibility(View.GONE);
             pageSeek.setVisibility(View.GONE);
             chapterLabel.setVisibility(View.GONE);
             if (getActionBar() != null) {
@@ -621,6 +605,7 @@ public class ReaderActivity extends Activity {
                             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         } else {
             topBar.setVisibility(View.VISIBLE);
+            bottomBar.setVisibility(View.VISIBLE);
             pageSeek.setVisibility(View.VISIBLE);
             chapterLabel.setVisibility(View.VISIBLE);
             if (getActionBar() != null) {
