@@ -353,7 +353,7 @@ public class ReaderActivity extends Activity {
         Button btnSearch = (Button) findViewById(R.id.btn_search);
         Button btnMinus = (Button) findViewById(R.id.btn_font_minus);
         Button btnPlus = (Button) findViewById(R.id.btn_font_plus);
-        Button btnTheme = (Button) findViewById(R.id.btn_theme);
+        ImageButton btnTheme = (ImageButton) findViewById(R.id.btn_theme);
         Button btnJustify = (Button) findViewById(R.id.btn_justify);
 
         btnToc.setOnClickListener(new View.OnClickListener() {
