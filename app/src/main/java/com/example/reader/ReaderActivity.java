@@ -592,14 +592,15 @@ public class ReaderActivity extends Activity {
                 return false;
             }
         });
-    }
-
-    @Override
-    public boolean dispatchTouchEvent(MotionEvent ev) {
-        if (gestureDetector != null && ev != null) {
-            gestureDetector.onTouchEvent(ev);
-        }
-        return super.dispatchTouchEvent(ev);
+        scrollView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                if (gestureDetector != null && event != null) {
+                    gestureDetector.onTouchEvent(event);
+                }
+                return false;
+            }
+        });
     }
 
     private void toggleFullscreen() {
