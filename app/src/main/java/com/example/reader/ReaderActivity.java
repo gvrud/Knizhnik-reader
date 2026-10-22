@@ -16,6 +16,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.speech.tts.TextToSpeech;
@@ -30,9 +31,11 @@ import android.text.style.ClickableSpan;
 import android.text.style.URLSpan;
 import android.util.Base64;
 import android.view.ActionMode;
+import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.Button;
@@ -60,7 +63,7 @@ public class ReaderActivity extends Activity {
     }
 
     private static final int MIN_FONT = 10;
-    private static final int MAX_FONT = 42;
+    private static final int MAX_FONT = 84;
     private static final int HIGHLIGHT = 0xFFFFEB3B;
     private static final int MENU_BOOKMARKS = 1;
     private static final int MENU_HELP = 2;
@@ -97,6 +100,7 @@ public class ReaderActivity extends Activity {
     private boolean ttsPlaying;
     private int ttsCharIndex;
     private PowerManager.WakeLock ttsWakeLock;
+    private GestureDetector gestureDetector;
 
     private final Html.ImageGetter imageGetter = new Html.ImageGetter() {
         @Override
@@ -341,6 +345,7 @@ public class ReaderActivity extends Activity {
 
         applyTheme();
         applyJustify();
+        setupGestureDetector();
 
         Button btnToc = (Button) findViewById(R.id.btn_toc);
         Button btnSearch = (Button) findViewById(R.id.btn_search);
@@ -519,8 +524,15 @@ public class ReaderActivity extends Activity {
     private void applyJustify() {
         boolean justify = Prefs.isJustify(this);
         textView.setTypeface(Typeface.DEFAULT);
+        if (Build.VERSION.SDK_INT >= 26) {
+            try {
+                textView.setJustificationMode(justify ? 1 : 0);
+            } catch (Throwable ignore) {
+                // not supported
+            }
+        }
         if (justify) {
-            textView.setGravity(android.view.Gravity.FILL);
+            textView.setGravity(android.view.Gravity.START | android.view.Gravity.TOP);
         } else {
             textView.setGravity(android.view.Gravity.START | android.view.Gravity.TOP);
         }
@@ -553,6 +565,41 @@ public class ReaderActivity extends Activity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    private void setupGestureDetector() {
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            private static final int SWIPE_THRESHOLD = 60;
+            private static final int SWIPE_VELOCITY_THRESHOLD = 200;
+
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                if (e1 == null || e2 == null) {
+                    return false;
+                }
+                float dx = e2.getX() - e1.getX();
+                float dy = e2.getY() - e1.getY();
+                if (Math.abs(dx) > Math.abs(dy)
+                        && Math.abs(dx) > SWIPE_THRESHOLD
+                        && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                    if (dx < 0) {
+                        pageForward();
+                    } else {
+                        pageBack();
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (gestureDetector != null && ev != null) {
+            gestureDetector.onTouchEvent(ev);
+        }
+        return super.dispatchTouchEvent(ev);
     }
 
     private void toggleFullscreen() {
