@@ -61,15 +61,24 @@ public class SoftScrollView extends ScrollView {
             int action = ev.getAction();
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                 horizontalDrag = false;
-                float dx = ev.getX() - downX;
-                if (swipeListener != null) {
-                    if (dx < 0) {
-                        swipeListener.onSwipeLeft();
-                    } else {
-                        swipeListener.onSwipeRight();
-                    }
+                final float dx = ev.getX() - downX;
+                final OnHorizontalSwipeListener l = swipeListener;
+                if (l != null) {
+                    post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (dx < 0) {
+                                l.onSwipeLeft();
+                            } else {
+                                l.onSwipeRight();
+                            }
+                        }
+                    });
                 }
                 return true;
+            }
+            if (action == MotionEvent.ACTION_DOWN) {
+                horizontalDrag = false;
             }
             return true;
         }

@@ -617,13 +617,16 @@ public class ReaderActivity extends Activity {
     }
 
     private void pageForward() {
-        if (book == null) {
+        if (book == null || scrollView == null) {
             return;
         }
         int page = currentPage();
         int pages = totalPages();
         if (page < pages) {
-            scrollView.smoothScrollTo(0, page * pageHeight());
+            int h = pageHeight();
+            if (h > 0) {
+                scrollView.smoothScrollTo(0, page * h);
+            }
         } else if (chapterIndex < book.chapters.size() - 1) {
             chapterIndex++;
             displayChapter();
@@ -633,12 +636,15 @@ public class ReaderActivity extends Activity {
     }
 
     private void pageBack() {
-        if (book == null) {
+        if (book == null || scrollView == null) {
             return;
         }
         int page = currentPage();
         if (page > 1) {
-            scrollView.smoothScrollTo(0, (page - 2) * pageHeight());
+            int h = pageHeight();
+            if (h > 0) {
+                scrollView.smoothScrollTo(0, (page - 2) * h);
+            }
         } else if (chapterIndex > 0) {
             chapterIndex--;
             displayChapter();
@@ -832,17 +838,17 @@ public class ReaderActivity extends Activity {
         } else {
             textView.setText(ch.text);
         }
-        scrollView.scrollTo(0, 0);
-        if (getActionBar() != null) {
-            getActionBar().setTitle(book.title);
-        }
         scrollView.post(new Runnable() {
             @Override
             public void run() {
+                scrollView.scrollTo(0, 0);
                 updatePageIndicator();
                 updateSeek();
             }
         });
+        if (getActionBar() != null) {
+            getActionBar().setTitle(book.title);
+        }
     }
 
     private void scrollToBottomLater() {
